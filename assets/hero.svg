@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="260" viewBox="0 0 900 260" font-family="Georgia, 'Times New Roman', serif" role="img" aria-label="ACDB: Active Causal Discovery Benchmark">
+  <!-- Clean-academic palette: paper ground, ink text, single muted accent -->
+  <rect width="900" height="260" fill="#fbfaf7"/>
+  <rect x="0" y="0" width="900" height="260" fill="none" stroke="#e7e2d8" stroke-width="1"/>
+
+  <!-- left: wordmark + pitch -->
+  <text x="56" y="104" font-size="58" font-weight="700" fill="#1a1a1a" letter-spacing="1">ACDB</text>
+  <text x="58" y="140" font-size="20" fill="#3a3a3a" font-style="italic">Active Causal Discovery Benchmark</text>
+  <line x1="58" y1="158" x2="430" y2="158" stroke="#b08968" stroke-width="2"/>
+  <text x="58" y="188" font-size="15" fill="#555">A diagnostic benchmark for LLM agents:</text>
+  <text x="58" y="210" font-size="15" fill="#555">recover a hidden DAG under budgeted interventions.</text>
+  <text x="58" y="232" font-size="13" fill="#8a8a8a" font-style="italic">observe &#8594; intervene &#8594; submit</text>
+
+  <!-- right: a small oriented-DAG motif -->
+  <g transform="translate(600,40)" stroke-width="2">
+    <!-- nodes -->
+    <circle cx="60"  cy="20"  r="15" fill="#fff" stroke="#1a1a1a"/>
+    <circle cx="160" cy="20"  r="15" fill="#fff" stroke="#1a1a1a"/>
+    <circle cx="20"  cy="110" r="15" fill="#fff" stroke="#1a1a1a"/>
+    <circle cx="110" cy="120" r="15" fill="#fff" stroke="#1a1a1a"/>
+    <circle cx="200" cy="110" r="15" fill="#fff" stroke="#1a1a1a"/>
+    <circle cx="110" cy="200" r="15" fill="#fff" stroke="#1a1a1a"/>
+    <!-- labels -->
+    <text x="60"  y="25"  font-size="13" fill="#1a1a1a" text-anchor="middle">A</text>
+    <text x="160" y="25"  font-size="13" fill="#1a1a1a" text-anchor="middle">B</text>
+    <text x="20"  y="115" font-size="13" fill="#1a1a1a" text-anchor="middle">C</text>
+    <text x="110" y="125" font-size="13" fill="#1a1a1a" text-anchor="middle">D</text>
+    <text x="200" y="115" font-size="13" fill="#1a1a1a" text-anchor="middle">E</text>
+    <text x="110" y="205" font-size="13" fill="#1a1a1a" text-anchor="middle">F</text>
+    <!-- oriented edges (the accent = compelled directions) -->
+    <defs>
+      <marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+        <path d="M0,0 L7,3 L0,6 Z" fill="#b08968"/>
+      </marker>
+    </defs>
+    <g stroke="#b08968" marker-end="url(#ah)" fill="none">
+      <path d="M52,32 L28,96"/>
+      <path d="M68,33 L104,106"/>
+      <path d="M152,33 L118,106"/>
+      <path d="M160,35 L160,95"/>
+      <path d="M110,135 L110,184"/>
+    </g>
+  </g>
+</svg>

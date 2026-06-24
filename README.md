@@ -1,6 +1,58 @@
-# ACDB: Active Causal Discovery Benchmark
+<div align="center">
 
-Code release for *Active Causal Discovery as a Diagnostic Benchmark for LLM Agents*. ACDB evaluates language-model agents on a sequential causal-discovery task with a fixed observe -- intervene -- submit protocol and a layered scoring contract.
+<img src="assets/hero.svg" alt="ACDB: Active Causal Discovery Benchmark" width="100%"/>
+
+<p>
+  <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-1a1a1a?style=flat-square&logo=python&logoColor=white">
+  <img alt="package manager: uv" src="https://img.shields.io/badge/deps-uv-b08968?style=flat-square">
+  <img alt="PC inference: causal-learn" src="https://img.shields.io/badge/causal--learn-0.1.4%2B-555?style=flat-square">
+  <img alt="status: NeurIPS 2026 submission" src="https://img.shields.io/badge/NeurIPS%202026-under%20review-b08968?style=flat-square">
+</p>
+
+</div>
+
+> **Can a language model discover causal structure?** ACDB hands an agent a hidden linear-Gaussian system, an observational sample, and a strict intervention budget — then scores how much of the true causal graph it can recover, and how efficiently. A fixed `observe → intervene → submit` protocol, a layered scoring contract, and classical structure-learning baselines on the exact same instances.
+
+Code release for *Active Causal Discovery as a Diagnostic Benchmark for LLM Agents*.
+
+---
+
+## The task in one picture
+
+<div align="center">
+  <img src="assets/protocol.svg" alt="The ACDB protocol: observe once, intervene under budget, submit a graph" width="90%"/>
+</div>
+
+The agent sees only anonymized variables and the data it asks for. The evaluator owns the truth — the DAG `G`, its CPDAG ceiling, the SCM, and a minimum intervention set `I*`. That asymmetry is what makes the scoring layered and the task honest.
+
+```mermaid
+flowchart LR
+    A["sample<br/>random DAG"] --> B{"reject?<br/>(faithfulness,<br/>identifiability)"}
+    B -->|"resample"| A
+    B -->|"accept"| C["parameterize<br/>linear-Gaussian SCM"]
+    C --> D["compute CPDAG<br/>+ min intervention set I*"]
+    D --> E(["AGENT<br/>observe · intervene · submit"])
+    E --> F["score: skeleton_f1 ·<br/>compelled_f1 · directed_f1 ·<br/>dag_shd · efficiency"]
+    style E fill:#fff,stroke:#b08968,stroke-width:2px
+    style F fill:#fbfaf7,stroke:#1a1a1a
+```
+
+## Headline result
+
+Directed-edge F1, averaged across all six difficulty levels (`d = 4 … 14` variables). `pc_greedy` is the classical structure-learning baseline; `oracle` is the benchmark ceiling; the random floor sits at **0.12 – 0.22** depending on level.
+
+| Model | `llm_raw` | `llm_stats` | `+ cpdag_greedy` | `pc_greedy` (baseline) | `oracle` |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **GPT-5.5** | **0.748** | 0.700 | 0.474 | 0.709 | 1.000 |
+| Sonnet 4.6 | 0.346 | 0.213 | 0.350 | 0.709 | 1.000 |
+| Gemini 3 Flash | 0.323 | 0.279 | 0.510 | 0.709 | 1.000 |
+| GPT-5.4-mini | 0.158 | 0.142 | 0.125 | 0.709 | 1.000 |
+| Haiku 4.5 | 0.149 | 0.166 | 0.313 | 0.709 | 1.000 |
+
+> Only **GPT-5.5 raw** clears the classical PC-greedy baseline; every other configuration lands below it, and the gap widens as the graph grows. Causal structure recovery under budgeted intervention is **not** yet a solved capability — which is the point.
+> <br/>*(Numbers reproduce from `traces/aggregated/per_model_per_level_per_method.csv`.)*
+
+---
 
 ## What the benchmark measures
 
