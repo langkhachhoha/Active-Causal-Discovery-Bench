@@ -1,51 +1,47 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="820" height="200" viewBox="0 0 820 200" font-family="Georgia, 'Times New Roman', serif" role="img" aria-label="ACDB protocol loop: observe, intervene, submit">
-  <rect width="820" height="200" fill="#fbfaf7"/>
-
-  <!-- three protocol stages as cards -->
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="240" viewBox="0 0 960 240" font-family="ui-monospace, &#39;SF Mono&#39;, Menlo, monospace" role="img" aria-label="ACDB protocol: observe, intervene, submit">
   <defs>
-    <marker id="flow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
-      <path d="M0,0 L7,3 L0,6 Z" fill="#999"/>
+    <marker id="flow" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#9a9387"></path>
     </marker>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#1a1a1a" flood-opacity="0.07"></feDropShadow>
+    </filter>
   </defs>
 
-  <!-- OBSERVE -->
-  <g>
-    <rect x="40" y="60" width="180" height="80" rx="6" fill="#fff" stroke="#1a1a1a" stroke-width="1.5"/>
-    <text x="130" y="92" font-size="18" font-weight="700" fill="#1a1a1a" text-anchor="middle">observe()</text>
-    <text x="130" y="116" font-size="12" fill="#666" text-anchor="middle">one observational</text>
-    <text x="130" y="132" font-size="12" fill="#666" text-anchor="middle">sample panel</text>
+  <rect width="960" height="240" rx="12" fill="#fbfaf7"></rect>
+  <rect x="1" y="1" width="958" height="238" rx="12" fill="none" stroke="#e7e2d8" stroke-width="1.5"></rect>
+
+  <text x="40" y="44" font-size="12" letter-spacing="2.5" fill="#b08968">THE PROTOCOL — ONE EPISODE</text>
+
+  
+  <g filter="url(#soft)">
+    <rect x="40" y="66" width="248" height="104" rx="10" fill="#fff" stroke="#1a1a1a" stroke-width="1.5"></rect>
   </g>
+  <text x="64" y="108" font-size="17" font-weight="700" fill="#1a1a1a">observe()</text>
+  <text x="64" y="132" font-size="12" fill="#666" font-family="-apple-system, &#39;Segoe UI&#39;, sans-serif">Returns one observational panel.</text>
+  <text x="64" y="150" font-size="12" fill="#666" font-family="-apple-system, &#39;Segoe UI&#39;, sans-serif">Callable exactly once.</text>
 
-  <!-- INTERVENE (loops) -->
-  <g>
-    <rect x="320" y="60" width="180" height="80" rx="6" fill="#fff" stroke="#1a1a1a" stroke-width="1.5"/>
-    <text x="410" y="92" font-size="18" font-weight="700" fill="#1a1a1a" text-anchor="middle">intervene()</text>
-    <text x="410" y="116" font-size="12" fill="#666" text-anchor="middle">do(X=v), budgeted,</text>
-    <text x="410" y="132" font-size="12" fill="#666" text-anchor="middle">repeat while budget</text>
-    <!-- self-loop arrow -->
-    <path d="M470,60 C490,30 330,30 350,60" fill="none" stroke="#999" stroke-width="1.5" marker-end="url(#flow)"/>
+  
+  <g filter="url(#soft)">
+    <rect x="356" y="66" width="248" height="104" rx="10" fill="#fff" stroke="#1a1a1a" stroke-width="1.5"></rect>
   </g>
+  <rect x="470" y="55" width="120" height="22" rx="11" fill="#b08968"></rect>
+  <text x="530" y="70" font-size="11" fill="#fff" text-anchor="middle">↻ while budget</text>
+  <text x="380" y="108" font-size="17" font-weight="700" fill="#1a1a1a">intervene(X, v)</text>
+  <text x="380" y="132" font-size="12" fill="#666" font-family="-apple-system, &#39;Segoe UI&#39;, sans-serif">do(X = v): one interventional</text>
+  <text x="380" y="150" font-size="12" fill="#666" font-family="-apple-system, &#39;Segoe UI&#39;, sans-serif">sample. Decrements budget.</text>
 
-  <!-- SUBMIT -->
-  <g>
-    <rect x="600" y="60" width="180" height="80" rx="6" fill="#fff" stroke="#1a1a1a" stroke-width="1.5"/>
-    <text x="690" y="92" font-size="18" font-weight="700" fill="#1a1a1a" text-anchor="middle">submit_graph()</text>
-    <text x="690" y="116" font-size="12" fill="#666" text-anchor="middle">directed + undirected</text>
-    <text x="690" y="132" font-size="12" fill="#666" text-anchor="middle">edges, ends episode</text>
+  
+  <g filter="url(#soft)">
+    <rect x="672" y="66" width="248" height="104" rx="10" fill="#fff" stroke="#1a1a1a" stroke-width="1.5"></rect>
   </g>
+  <text x="696" y="108" font-size="17" font-weight="700" fill="#1a1a1a">submit_graph()</text>
+  <text x="696" y="132" font-size="12" fill="#666" font-family="-apple-system, &#39;Segoe UI&#39;, sans-serif">Directed + undirected edges.</text>
+  <text x="696" y="150" font-size="12" fill="#666" font-family="-apple-system, &#39;Segoe UI&#39;, sans-serif">Seals the episode, then scores.</text>
 
-  <!-- flow arrows -->
-  <line x1="222" y1="100" x2="316" y2="100" stroke="#999" stroke-width="1.5" marker-end="url(#flow)"/>
-  <line x1="502" y1="100" x2="596" y2="100" stroke="#999" stroke-width="1.5" marker-end="url(#flow)"/>
+  
+  <line x1="290" y1="118" x2="352" y2="118" stroke="#9a9387" stroke-width="1.5" marker-end="url(#flow)"></line>
+  <line x1="606" y1="118" x2="668" y2="118" stroke="#9a9387" stroke-width="1.5" marker-end="url(#flow)"></line>
 
-  <!-- animated accent highlight sweeping the three stages -->
-  <rect x="40" y="60" width="180" height="80" rx="6" fill="none" stroke="#b08968" stroke-width="3">
-    <animate attributeName="x" values="40;320;600;600" keyTimes="0;0.4;0.8;1" dur="4s" repeatCount="indefinite"/>
-    <animate attributeName="width" values="180;180;180;180" dur="4s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="1;1;1;0.15;1" keyTimes="0;0.75;0.85;0.92;1" dur="4s" repeatCount="indefinite"/>
-  </rect>
-
-  <text x="410" y="180" font-size="13" fill="#8a8a8a" text-anchor="middle" font-style="italic">
-    fixed protocol, scored against the true DAG and its CPDAG ceiling
-  </text>
+  <text x="480" y="210" font-size="12.5" fill="#8a8a8a" text-anchor="middle" font-style="italic" font-family="Georgia, serif">The agent sees only anonymized variables and the data it asks for — the evaluator owns the truth.</text>
 </svg>

@@ -1,17 +1,10 @@
 <div align="center">
 
-<img src="assets/hero.svg" alt="ACDB: Active Causal Discovery Benchmark" width="100%"/>
-
-<p>
-  <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-1a1a1a?style=flat-square&logo=python&logoColor=white">
-  <img alt="package manager: uv" src="https://img.shields.io/badge/deps-uv-b08968?style=flat-square">
-  <img alt="PC inference: causal-learn" src="https://img.shields.io/badge/causal--learn-0.1.4%2B-555?style=flat-square">
-  <img alt="status: NeurIPS 2026 submission" src="https://img.shields.io/badge/NeurIPS%202026-under%20review-b08968?style=flat-square">
-</p>
+<img src="assets/hero.svg" alt="ACDB — Active Causal Discovery Benchmark" width="100%"/>
 
 </div>
 
-> **Can a language model discover causal structure?** ACDB hands an agent a hidden linear-Gaussian system, an observational sample, and a strict intervention budget — then scores how much of the true causal graph it can recover, and how efficiently. A fixed `observe → intervene → submit` protocol, a layered scoring contract, and classical structure-learning baselines on the exact same instances.
+> **Can a language model discover causal structure?** ACDB hands an agent a hidden linear-Gaussian system, one observational sample, and a strict intervention budget — then scores how much of the true causal graph it recovers, and how efficiently. A fixed `observe → intervene → submit` protocol, a layered scoring contract, and classical structure-learning baselines on the exact same instances.
 
 Code release for *Active Causal Discovery as a Diagnostic Benchmark for LLM Agents*.
 
@@ -20,14 +13,14 @@ Code release for *Active Causal Discovery as a Diagnostic Benchmark for LLM Agen
 ## The task in one picture
 
 <div align="center">
-  <img src="assets/protocol.svg" alt="The ACDB protocol: observe once, intervene under budget, submit a graph" width="90%"/>
+  <img src="assets/protocol.svg" alt="The ACDB protocol: observe once, intervene under budget, submit a graph" width="92%"/>
 </div>
 
 The agent sees only anonymized variables and the data it asks for. The evaluator owns the truth — the DAG `G`, its CPDAG ceiling, the SCM, and a minimum intervention set `I*`. That asymmetry is what makes the scoring layered and the task honest.
 
 ```mermaid
 flowchart LR
-    A["sample<br/>random DAG"] --> B{"reject?<br/>(faithfulness,<br/>identifiability)"}
+    A["sample<br/>random DAG"] --> B{"reject?<br/>faithfulness ·<br/>identifiability"}
     B -->|"resample"| A
     B -->|"accept"| C["parameterize<br/>linear-Gaussian SCM"]
     C --> D["compute CPDAG<br/>+ min intervention set I*"]
@@ -64,22 +57,24 @@ X_i = sum_{j in Pa(i)} w_ij X_j + eps_i,   eps_i ~ N(0, sigma_i^2)
 
 The agent only ever sees anonymized variables, an observational sample matrix, and any interventional samples it requests. The evaluator owns the rest: the true DAG `G`, its CPDAG (the observational ceiling), the parameterized SCM, and a benchmark-owned minimum intervention set `I*` that resolves `G` from its CPDAG. This asymmetry is what makes scoring layered.
 
-**Two truth objects, four scoring layers.** Observational data identifies a Markov equivalence class, not a unique DAG. ACDB therefore scores against two distinct objects -- the CPDAG and the DAG -- and reports four metrics:
+**Two truth objects, four scoring layers.** Observational data identifies a Markov equivalence class, not a unique DAG. ACDB therefore scores against two distinct objects — the CPDAG and the DAG — and reports four metrics:
 
-- `skeleton_f1` -- adjacency recovery against `G`.
-- `compelled_f1` -- direction recovery against the directed edges of CPDAG(`G`) (the part observational data alone is allowed to identify).
-- `directed_f1`, `dag_shd` -- full directed-edge recovery against `G`.
-- `efficiency` -- intervention budget used relative to `|I*|`.
+- `skeleton_f1` — adjacency recovery against `G`.
+- `compelled_f1` — direction recovery against the directed edges of CPDAG(`G`) (the part observational data alone is allowed to identify).
+- `directed_f1`, `dag_shd` — full directed-edge recovery against `G`.
+- `efficiency` — intervention budget used relative to `|I*|`.
 
-A model can fail on adjacencies, on observational orientations, on interventional orientations, or on intervention budgeting -- and ACDB reports each separately.
+A model can fail on adjacencies, on observational orientations, on interventional orientations, or on intervention budgeting — and ACDB reports each separately.
 
 **Random floor.** With `M = d(d-1)/2` candidate edges, a uniform-`m` random submission has closed-form expected directed F1
+
 ```
 E[F1] = (1/(M+1)) * sum_{m=0..M} k*m / (M*(m+k))
 ```
-For each level the README's results table reports `directed_f1` alongside this floor so a number above it is meaningful and a number near it is not.
 
-**Active protocol.** `observe()` returns the observational panel exactly once. `intervene(var, value)` returns one interventional sample matrix per call while budget remains. `submit_graph(directed_edges, undirected_edges)` ends the episode -- leaving an edge undirected is a legitimate output, distinct from omitting it.
+For each level the results table reports `directed_f1` alongside this floor, so a number above it is meaningful and a number near it is not.
+
+**Active protocol.** `observe()` returns the observational panel exactly once. `intervene(var, value)` returns one interventional sample matrix per call while budget remains. `submit_graph(directed_edges, undirected_edges)` ends the episode — leaving an edge undirected is a legitimate output, distinct from omitting it.
 
 ## Repository layout
 
@@ -158,11 +153,11 @@ uv run python run_ladder.py \
 uv run python scripts/ladder_random_floor_sanity.py
 ```
 
-Produces `traces/ladder_random_floor_sanity/summary.csv` -- the Monte Carlo floor that Appendix C compares to the closed form above.
+Produces `traces/ladder_random_floor_sanity/summary.csv` — the Monte Carlo floor that Appendix C compares to the closed form above.
 
 ### 6. Resume / retry
 
-`run_ladder.py` checkpoints to `<out-dir>/checkpoint.json` after every work item. To resume an interrupted panel, rerun the exact same command -- it picks up where it left off. To retry only the failed items:
+`run_ladder.py` checkpoints to `<out-dir>/checkpoint.json` after every work item. To resume an interrupted panel, rerun the exact same command — it picks up where it left off. To retry only the failed items:
 
 ```bash
 uv run python run_ladder.py ... --retry-failed
@@ -172,11 +167,11 @@ uv run python run_ladder.py ... --retry-failed
 
 Each `--out-dir` ends up with:
 
-- `events.jsonl` -- full event log: `instance_metadata`, `llm_model_call` (request, raw response, parsed action, tokens, cost), `llm_action`, `llm_tool_result`, `llm_intervention_result`, `work_success`/`work_failed`. This is what reviewers can re-score from.
-- `results_long.csv` -- one row per (level, seed, method) cell with the four scoring layers.
-- `results_summary.csv` -- per-method aggregates within the panel.
-- `run_manifest.json` -- exact CLI args, model string, accepted-seed map.
-- `checkpoint.json` -- resume state.
+- `events.jsonl` — full event log: `instance_metadata`, `llm_model_call` (request, raw response, parsed action, tokens, cost), `llm_action`, `llm_tool_result`, `llm_intervention_result`, `work_success` / `work_failed`. This is what reviewers can re-score from.
+- `results_long.csv` — one row per (level, seed, method) cell with the four scoring layers.
+- `results_summary.csv` — per-method aggregates within the panel.
+- `run_manifest.json` — exact CLI args, model string, accepted-seed map.
+- `checkpoint.json` — resume state.
 
 ## Verifying the paper numbers
 
