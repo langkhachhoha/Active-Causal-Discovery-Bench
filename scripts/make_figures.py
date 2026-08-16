@@ -340,8 +340,8 @@ def fig_budget(s1, tight, out_dir):
 def fig_efficiency(s1, out_dir):
     """Tokens spent against accuracy bought. The no-scaffold agent spends the most
     and buys the least, which is the whole argument for the scaffold in one panel."""
-    picks = [("llm+meek", Q, f"SPLICE · {QL}", BLUE, (11, 4), "left"),
-             ("llm+meek", G, f"SPLICE · {GL}", BLUE, (11, -11), "left"),
+    picks = [("llm+meek", Q, f"RauMa · {QL}", BLUE, (11, 4), "left"),
+             ("llm+meek", G, f"RauMa · {GL}", BLUE, (11, -11), "left"),
              ("llm+llm", Q, f"llm+llm · {QL}", ORANGE, (12, -2), "left"),
              ("llm+llm", G, f"llm+llm · {GL}", ORANGE, (0, -17), "center"),
              ("oracle+llm", Q, f"oracle+llm · {QL}", ORANGE, (11, 9), "left"),
@@ -373,14 +373,14 @@ def fig_efficiency(s1, out_dir):
 def fig_probe_main(s2, out_dir):
     """Full ranking with the three reference lines a reader needs to place it."""
     arms = [("oracle", "none", "oracle (upper bound)", FLAT),
-            ("probe", G, f"PROBE · {GL}", BLUE),
-            ("probe", Q, f"PROBE · {QL}", BLUE),
+            ("probe", G, f"NemChua · {GL}", BLUE),
+            ("probe", Q, f"NemChua · {QL}", BLUE),
             ("probe_skel_only", "none", "PC skeleton only (no LLM)", FLAT),
             ("probe_mec_only", "none", "PC MEC only", FLAT),
             ("pc_greedy_meek", "none", "PC + greedy + Meek", ORANGE),
             ("pc_greedy", "none", "PC + greedy", ORANGE),
             ("probe_llm_graphs", Q, f"LLM whole-graph proposals · {QL}", FLAT),
-            ("probe_no_update", Q, f"PROBE without Bayesian update · {QL}", FLAT),
+            ("probe_no_update", Q, f"NemChua without Bayesian update · {QL}", FLAT),
             ("probe_random_hyp", "none", "random hypotheses", FLAT),
             ("llm_e2e", Q, f"no scaffold · {QL}", RED),
             ("llm_e2e", G, f"no scaffold · {GL}", RED)]
@@ -398,9 +398,9 @@ def fig_probe_main(s2, out_dir):
     ax.set_yticklabels([v[0] for v in vals], fontsize=7.8, color=INK2)
     ax.set_xlabel("Directed F1")
     ax.set_xlim(0, 1.12)
-    ax.set_title("PROBE beats the classical pipeline and the end-to-end agent alike",
+    ax.set_title("NemChua beats the classical pipeline and the end-to-end agent alike",
                  color=INK, pad=6, loc="left")
-    ax.legend(handles=[Patch(facecolor=BLUE, label="PROBE (ours)"),
+    ax.legend(handles=[Patch(facecolor=BLUE, label="NemChua (ours)"),
                        Patch(facecolor=ORANGE, label="classical baseline"),
                        Patch(facecolor=RED, label="LLM-agent baseline"),
                        Patch(facecolor=FLAT, label="ablation / reference")],
@@ -415,8 +415,8 @@ def fig_probe_main(s2, out_dir):
 def fig_crossover(sweep, out_dir):
     """The LLM proposer earns its keep exactly where PC's skeleton is unreliable."""
     ns = sorted(sweep)
-    series = [(("probe", G), f"PROBE · {GL}", BLUE, "o"),
-              (("probe", Q), f"PROBE · {QL}", AQUA, "s"),
+    series = [(("probe", G), f"NemChua · {GL}", BLUE, "o"),
+              (("probe", Q), f"NemChua · {QL}", AQUA, "s"),
               (("probe_skel_only", "none"), "PC skeleton only (no LLM)", ORANGE, "^"),
               (("pc_greedy_meek", "none"), "PC + greedy + Meek", YELLOW, "D")]
     fig, axes = plt.subplots(1, 2, figsize=(6.9, 3.1))
@@ -464,7 +464,7 @@ def fig_crossover(sweep, out_dir):
     ax.set_xticklabels([str(n) for n in ns])
     ax.set_xlim(34, 1400)
     ax.set_xlabel("Observational sample size $n_{obs}$  (log scale)")
-    ax.set_ylabel("PROBE − PC skeleton only")
+    ax.set_ylabel("NemChua − PC skeleton only")
     ax.set_ylim(-0.05, 0.085)
     ax.set_title("… but the LLM only helps when data is scarce", color=INK, pad=6,
                  loc="left", fontsize=9)
@@ -473,7 +473,7 @@ def fig_crossover(sweep, out_dir):
 
 
 def fig_components(s2, out_dir):
-    """What each part of PROBE is worth, measured by removing it."""
+    """What each part of NemChua is worth, measured by removing it."""
     parts = [(("probe_no_update", Q), "Bayesian posterior update"),
              (("probe_random_hyp", "none"), "an informed hypothesis space"),
              (("probe_llm_graphs", Q), "skeleton repair (vs whole-graph proposals)"),
@@ -503,7 +503,7 @@ def fig_components(s2, out_dir):
     ax.set_yticklabels([r[0] for r in rows], fontsize=7.8, color=INK2)
     ax.set_xlabel("Directed F1 lost when this component is removed  (paired, n = 40)")
     ax.set_xlim(-0.03, 0.70)
-    ax.set_title("The hypothesis space carries PROBE; the selection rule barely matters",
+    ax.set_title("The hypothesis space carries NemChua; the selection rule barely matters",
                  color=INK, pad=6, loc="left")
     style(ax, xgrid=True)
     ax.spines["left"].set_visible(False)
@@ -512,13 +512,13 @@ def fig_components(s2, out_dir):
 
 
 def fig_hypotheses(s2, out_dir):
-    """Why PROBE wins: the true graph is more often inside the space it searches."""
+    """Why NemChua wins: the true graph is more often inside the space it searches."""
     sources = [("probe_random_hyp", "none", "random"),
                ("probe_llm_graphs", Q, f"LLM whole graphs · {QL}"),
                ("probe_mec_only", "none", "PC MEC"),
                ("probe_skel_only", "none", "PC skeleton"),
-               ("probe", Q, f"PROBE · {QL}"),
-               ("probe", G, f"PROBE · {GL}")]
+               ("probe", Q, f"NemChua · {QL}"),
+               ("probe", G, f"NemChua · {GL}")]
     labels, truth, bestf1 = [], [], []
     for arm, tag, label in sources:
         labels.append(label)
@@ -541,7 +541,7 @@ def fig_hypotheses(s2, out_dir):
     ax.set_yticklabels(labels, fontsize=7.8, color=INK2)
     ax.set_xlabel("Fraction of instances  /  F1")
     ax.set_xlim(0, 1.12)
-    ax.set_title("Skeleton repair raises the ceiling PROBE can reach",
+    ax.set_title("Skeleton repair raises the ceiling NemChua can reach",
                  color=INK, pad=6, loc="left")
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.20), ncol=2,
               handlelength=1.1, handletextpad=0.5, columnspacing=1.6)

@@ -1,230 +1,506 @@
 <div align="center">
 
-<img src="assets/hero.svg" alt="ACDB — Active Causal Discovery Benchmark" width="100%"/>
+<img src="assets/studies_hero.svg" alt="RauMa and NemChua — two independent studies on active causal discovery" width="100%"/>
+
+<br/>
+
+<img alt="episodes" src="https://img.shields.io/badge/episodes-1%2C920-2a78d6?style=for-the-badge&labelColor=0d366b"/>
+<img alt="completed" src="https://img.shields.io/badge/completed-100%25-1baf7a?style=for-the-badge&labelColor=0d366b"/>
+<img alt="total cost" src="https://img.shields.io/badge/total%20cost-%241.38-eda100?style=for-the-badge&labelColor=0d366b"/>
+<img alt="models" src="https://img.shields.io/badge/models-2%20under%2030B-eb6834?style=for-the-badge&labelColor=0d366b"/>
+<img alt="tests" src="https://img.shields.io/badge/tests-25%20passing-4a3aa7?style=for-the-badge&labelColor=0d366b"/>
+
+<br/><br/>
+
+**Two independent studies of language-model agents doing active causal discovery.**<br/>
+Each hands an agent a hidden linear-Gaussian system, one observational sample, and a<br/>
+budget of roughly three interventions — then asks for the full directed graph.
+
+<br/>
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🧭 &nbsp;RauMa
+
+**Which half of the job do LLMs fail at?**
+
+Factorise the agent into *who chooses the experiment* × *who reads the result*, then run
+the whole 5 × 2 cross-product on paired instances.
+
+**→ Choosing is solved. Reading is not.**
+The entire end-to-end gap is inference; selection contributes nothing.
+
+<a href="#rauma"><b>Read the study ↓</b></a>
+
+</td>
+<td width="50%" valign="top">
+
+### 🔬 &nbsp;NemChua
+
+**Can an LLM supply the hypothesis space?**
+
+Let the model repair a structure-learner's skeleton, then let exact Bayesian experimental
+design do everything downstream.
+
+**→ Yes — and only while data is scarce.**
+Beats the classical pipeline by **+0.093 F1**, with the gain vanishing as *n* grows.
+
+<a href="#nemchua"><b>Read the study ↓</b></a>
+
+</td>
+</tr>
+</table>
 
 </div>
 
-> **Can a language model discover causal structure?** ACDB hands an agent a hidden linear-Gaussian system, one observational sample, and a strict intervention budget — then scores how much of the true causal graph it recovers, and how efficiently. A fixed `observe → intervene → submit` protocol, a layered scoring contract, and classical structure-learning baselines on the exact same instances.
-
-Code release for *Active Causal Discovery as a Diagnostic Benchmark for LLM Agents*.
+> [!NOTE]
+> **The two studies are independent.** They share a benchmark and a codebase, nothing else.
+> Neither uses the other as a baseline, and neither's conclusions depend on the other's.
 
 ---
 
-## The task in one picture
+## The task
+
+Observational data identifies a DAG only up to its **Markov equivalence class**: the
+skeleton is recoverable, many edge orientations are not. Interventions are the only way to
+resolve them. Each episode gives the agent:
+
+```
+observe()                 →  one observational sample, n = 300
+intervene(var, value)     →  a hard intervention, repeatable under budget
+submit_graph()            →  one final directed graph, scored against hidden truth
+```
+
+The budget is `|I*| + 1`, where `I*` is the **minimum intervention set** the evaluator
+computes from the true DAG — so budgets are tiny, typically 3 and never more than 5.
 
 <div align="center">
-  <img src="assets/protocol.svg" alt="The ACDB protocol: observe once, intervene under budget, submit a graph" width="92%"/>
+
+| Level | `d` | `k` | size of `I*` | budget | PC undirected edges | MEC size | PC skeleton-F1 ceiling |
+|:-----:|:---:|:---:|:------------:|:------:|:-------------------:|:--------:|:----------------------:|
+| **0** | 4 | 4 | 1.40 | 2.40 | 2.6 | 4.5 | 0.900 |
+| **1** | 6 | 6 | 1.70 | 2.70 | 2.6 | 4.6 | 0.956 |
+| **2** | 8 | 8 | 1.80 | 2.80 | 3.3 | 6.5 | 0.946 |
+| **3** | 10 | 10 | 2.20 | 3.20 | 4.6 | 11.4 | 0.951 |
+
 </div>
 
-The agent sees only anonymized variables and the data it asks for. The evaluator owns the truth — the DAG `G`, its CPDAG ceiling, the SCM, and a minimum intervention set `I*`. That asymmetry is what makes the scoring layered and the task honest.
+The ladder is calibrated so the PC front-end is **competent but imperfect**. Denser graphs
+collapse both studies: PC's skeleton is then wrong so often that every arm hits the same
+low ceiling and no experiment can help.
 
-```mermaid
-flowchart LR
-    A["sample<br/>random DAG"] --> B{"reject?<br/>faithfulness ·<br/>identifiability"}
-    B -->|"resample"| A
-    B -->|"accept"| C["parameterize<br/>linear-Gaussian SCM"]
-    C --> D["compute CPDAG<br/>+ min intervention set I*"]
-    D --> E(["AGENT<br/>observe · intervene · submit"])
-    E --> F["score: skeleton_f1 ·<br/>compelled_f1 · directed_f1 ·<br/>dag_shd · efficiency"]
-    style E fill:#fff,stroke:#b08968,stroke-width:2px
-    style F fill:#fbfaf7,stroke:#1a1a1a
-```
+Two deliberately small, cheap models, both through OpenRouter with forced tool-calling at
+temperature 0: **`qwen3-coder-30b-a3b-instruct`** and **`gpt-4o-mini-2024-07-18`**.
 
-## Headline result
+Every arm sees the **same seed map**, so all comparisons are **paired by instance**. Every
+significance test below is a two-sided Wilcoxon signed-rank over those pairs, reported
+alongside win/tie/loss counts — ties dominate on this benchmark and a p-value alone hides
+that.
 
-Directed-edge F1, averaged across all six difficulty levels (`d = 4 … 14` variables). `pc_greedy` is the classical structure-learning baseline; `oracle` is the benchmark ceiling; the random floor sits at **0.12 – 0.22** depending on level.
-
-| Model | `llm_raw` | `llm_stats` | `+ cpdag_greedy` | `pc_greedy` (baseline) | `oracle` |
-|---|:---:|:---:|:---:|:---:|:---:|
-| **GPT-5.5** | **0.748** | 0.700 | 0.474 | 0.709 | 1.000 |
-| Sonnet 4.6 | 0.346 | 0.213 | 0.350 | 0.709 | 1.000 |
-| Gemini 3 Flash | 0.323 | 0.279 | 0.510 | 0.709 | 1.000 |
-| GPT-5.4-mini | 0.158 | 0.142 | 0.125 | 0.709 | 1.000 |
-| Haiku 4.5 | 0.149 | 0.166 | 0.313 | 0.709 | 1.000 |
-
-> Only **GPT-5.5 raw** clears the classical PC-greedy baseline; every other configuration lands below it, and the gap widens as the graph grows. Causal structure recovery under budgeted intervention is **not** yet a solved capability — which is the point.
-> <br/>*(Numbers reproduce from `traces/aggregated/per_model_per_level_per_method.csv`.)*
+<br/>
 
 ---
 
-## What the benchmark measures
+<div align="center">
 
-Each instance is built from a hidden linear-Gaussian SCM over `d` variables:
+<a id="rauma"></a>
 
-```
-X_i = sum_{j in Pa(i)} w_ij X_j + eps_i,   eps_i ~ N(0, sigma_i^2)
-```
+# 🧭 RauMa — *the LLM proposes, Meek disposes*
 
-The agent only ever sees anonymized variables, an observational sample matrix, and any interventional samples it requests. The evaluator owns the rest: the true DAG `G`, its CPDAG (the observational ceiling), the parameterized SCM, and a benchmark-owned minimum intervention set `I*` that resolves `G` from its CPDAG. This asymmetry is what makes scoring layered.
+</div>
 
-**Two truth objects, four scoring layers.** Observational data identifies a Markov equivalence class, not a unique DAG. ACDB therefore scores against two distinct objects — the CPDAG and the DAG — and reports four metrics:
+<div align="center">
+<img src="assets/rauma_flow.svg" alt="RauMa pipeline" width="100%"/>
+</div>
 
-- `skeleton_f1` — adjacency recovery against `G`.
-- `compelled_f1` — direction recovery against the directed edges of CPDAG(`G`) (the part observational data alone is allowed to identify).
-- `directed_f1`, `dag_shd` — full directed-edge recovery against `G`.
-- `efficiency` — intervention budget used relative to `|I*|`.
+Active causal discovery needs two skills that are almost always measured together:
 
-A model can fail on adjacencies, on observational orientations, on interventional orientations, or on intervention budgeting — and ACDB reports each separately.
+<div align="center">
 
-**Random floor.** With `M = d(d-1)/2` candidate edges, a uniform-`m` random submission has closed-form expected directed F1
+| | |
+|:--|:--|
+| **Selection** | which variable should I intervene on next? |
+| **Inference** | given this outcome, which way does the arrow point? |
 
-```
-E[F1] = (1/(M+1)) * sum_{m=0..M} k*m / (M*(m+k))
-```
+</div>
 
-For each level the results table reports `directed_f1` alongside this floor, so a number above it is meaningful and a number near it is not.
+RauMa separates them. Fix one axis, vary the other, and each skill is isolated:
 
-**Active protocol.** `observe()` returns the observational panel exactly once. `intervene(var, value)` returns one interventional sample matrix per call while budget remains. `submit_graph(directed_edges, undirected_edges)` ends the episode — leaving an edge undirected is a legitimate output, distinct from omitting it.
+| Axis | Levels |
+|---|---|
+| **Selector** | `random` · `maxdeg` · `eig` (exact BOED over the enumerated MEC) · `llm` · `oracle` (the true `I*`) |
+| **Inferencer** | `meek` (mean-shift test + Meek closure) · `llm` |
+| **Reference** | `llm_e2e` — one LLM does everything, no scaffold |
 
-## Repository layout
+### The gap is entirely inference
 
-```
-run_ladder.py                 main runner (model panels, ablations)
-run_random_dag_baseline.py    random uniform-m baseline (Appendix C)
-src/causal_discovery/         benchmark assembly, agents, scoring, SCM
-scripts/extract_trace_rows.py trace -> per-step CSV (Appendix F)
-scripts/ladder_random_floor_sanity.py  Monte Carlo random-floor calibration
-traces/ladder/full_*          5 canonical model panels
-traces/aggregated/            per-cell aggregate + 5 per-trace CSVs
-traces/ladder_random_floor_sanity/     calibration outputs
-```
+<div align="center">
+<img src="figures/s1_f1_decomposition.png" alt="Decomposition waterfall" width="100%"/>
+</div>
 
-## Reproduce results
+<div align="center">
 
-### 1. Install
+| Model | ceiling | full LLM agent | total gap | **selection** | **inference** |
+|:---|---:|---:|---:|---:|---:|
+| `qwen3-coder-30b` | 0.836 | 0.520 | 0.316 | **−0.025** <sub>p = 0.072</sub> | **+0.279** <sub>p = 2.5e-07</sub> |
+| `gpt-4o-mini` | 0.836 | 0.533 | 0.303 | **−0.021** <sub>p = 0.173</sub> | **+0.320** <sub>p = 5.6e-08</sub> |
 
-Requires Python >= 3.12 and `uv`.
+</div>
 
-```bash
-uv sync
-```
+The selection term is **negative** — letting the LLM choose experiments is, if anything,
+slightly better than the minimum intervention set. The inference term is significant at
+p ≈ 1e-07, with the LLM losing on **36 of 40** instances.
 
-### 2. API keys
+<div align="center">
+<img src="figures/s1_f2_grid.png" alt="Selector by inferencer grid" width="72%"/>
+</div>
 
-Create `.env` at the repo root with the keys for the panels you want to rerun:
+Moving **down** a column changes almost nothing. Moving **across** a row costs ~0.3 F1.
+`llm+meek` on qwen is the best of all eighteen arms at **0.861**.
 
-```
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-OPENROUTER_API_KEY=sk-or-...
-```
+### Why inference fails: the LLM ignores its own experiments
 
-The runner refuses to launch if a required key is missing. OpenRouter is used for the Claude panels and Gemini in the paper; replace the `--models` string with a native provider if you prefer.
+<details open>
+<summary><b>Selection held at oracle — the diagnostic table</b></summary>
 
-### 3. Run a panel
+<br/>
 
-The five paper panels are produced by the same command, varying only `--models` and `--out-dir`. The retry envvar enables auto-resume on transient provider errors (default 0):
+| Inferencer | directed F1 | compelled F1 | skeleton F1 | SHD | edges left undirected |
+|:---|---:|---:|---:|---:|---:|
+| `meek` | **0.836** | 0.925 | 0.938 | 1.25 | 0.00 |
+| `llm` · qwen | 0.557 | 0.914 | 0.917 | 3.65 | 0.68 |
+| `llm` · gpt-4o-mini | 0.516 | 0.864 | 0.830 | 4.12 | 0.85 |
 
-```bash
-LADDER_MAX_RETRIES=20 uv run python run_ladder.py \
-    --levels 0,1,2,3,4,5 \
-    --seeds-per-level 8 \
-    --models gpt-5.5 \
-    --alpha 0.05 \
-    --max-steps-raw 20 \
-    --max-steps-stats 40 \
-    --preflight-seed 20260422 \
-    --out-dir traces/ladder/full_gpt55
-```
+</details>
 
-`--preflight-seed 20260422` reproduces the 48-seed paired manifest used by every panel, so results are paired by instance across models. The same accepted-seed map appears in every panel's `run_manifest.json`.
+<br/>
 
-| Panel             | `--models`                                       | `--out-dir`                            |
-|-------------------|--------------------------------------------------|----------------------------------------|
-| GPT-5.5           | `gpt-5.5`                                        | `traces/ladder/full_gpt55`             |
-| GPT-5.4-mini      | `gpt-5.4-mini`                                   | `traces/ladder/full_gpt54mini`         |
-| Claude Sonnet 4.6 | `openrouter/anthropic/claude-sonnet-4-6`         | `traces/ladder/full_sonnet46_or`       |
-| Claude Haiku 4.5  | `openrouter/anthropic/claude-haiku-4.5`          | `traces/ladder/full_haiku45_or`        |
-| Gemini 3 Flash    | `google/gemini-3-flash-preview`                  | `traces/ladder/full_gemini3flash`      |
+qwen's skeleton stays essentially intact (0.917 vs 0.938), and its *compelled* edges —
+the ones already oriented in the observational CPDAG — are near-perfect (0.914 vs 0.925).
+Only the edges that **require interventional evidence** collapse.
 
-### 4. Smoke test (one level, one seed)
+> **The LLM reproduces the observational CPDAG and largely ignores the interventional
+> evidence it was given.**
 
-```bash
-uv run python run_ladder.py \
-    --levels 0 \
-    --seeds-per-level 1 \
-    --models gpt-5.5 \
-    --out-dir traces/ladder/smoke_gpt55
-```
+That is a specific, falsifiable mechanism — not "the LLM is bad at graphs".
 
-### 5. Random-floor calibration (Appendix C)
+The `meek` ceiling is 0.836 rather than 1.0 because the mean-shift test itself misorients
+**5.6 %** of edges at `n_int = 150` (11.1 % at *d* = 6, falling to 2.2 % at *d* = 10). The
+0.28 gap is measured against an already-imperfect reference.
 
-```bash
-uv run python scripts/ladder_random_floor_sanity.py
-```
+### LLM selection matches exact Bayesian experimental design
 
-Produces `traces/ladder_random_floor_sanity/summary.csv` — the Monte Carlo floor that Appendix C compares to the closed form above.
+<div align="center">
+<img src="figures/s1_f3_dissociation.png" alt="Selection regret versus final accuracy" width="100%"/>
+</div>
 
-### 6. Resume / retry
+<div align="center">
 
-`run_ladder.py` checkpoints to `<out-dir>/checkpoint.json` after every work item. To resume an interrupted panel, rerun the exact same command — it picks up where it left off. To retry only the failed items:
+| Selector | picks the optimal target | selection regret | directed F1 |
+|:---|---:|---:|---:|
+| `oracle` | 100.0 % | 0.00 | 0.836 |
+| `maxdeg` | 92.8 % | 0.15 | 0.857 |
+| **`llm` · qwen** | **91.3 %** | **0.18** | **0.861** |
+| `eig` (BOED) | 90.0 % | 0.17 | 0.857 |
+| `llm` · gpt-4o-mini | 84.7 % | 0.43 | 0.856 |
+| `random` | 60.8 % | 1.35 | 0.843 |
 
-```bash
-uv run python run_ladder.py ... --retry-failed
-```
+</div>
 
-## Outputs per panel
+A 30B open model picks interventions as well as expected information gain computed exactly
+over the enumerated equivalence class: **39 of 40 instances tie**, p = 0.32.
 
-Each `--out-dir` ends up with:
+> [!IMPORTANT]
+> **We do not claim a speed advantage.** At these sizes exact EIG is *faster* than the LLM
+> — 0.033 s versus 4.6 s at *d* = 10, where `|MEC| = 11.4`. The claim is **generality**:
+> EIG needs the full likelihood and an enumerable equivalence class; the LLM needs a prompt.
 
-- `events.jsonl` — full event log: `instance_metadata`, `llm_model_call` (request, raw response, parsed action, tokens, cost), `llm_action`, `llm_tool_result`, `llm_intervention_result`, `work_success` / `work_failed`. This is what reviewers can re-score from.
-- `results_long.csv` — one row per (level, seed, method) cell with the four scoring layers.
-- `results_summary.csv` — per-method aggregates within the panel.
-- `run_manifest.json` — exact CLI args, model string, accepted-seed map.
-- `checkpoint.json` — resume state.
+The right-hand panel is the caveat. Selection regret spans a 9-fold range while directed F1
+does not move — with one spare intervention, a bad choice stays recoverable.
 
-## Verifying the paper numbers
+### Tighten the budget and the selection axis wakes up
 
-The body and appendices aggregate across panels into `traces/aggregated/per_model_per_level_per_method.csv`. Every number in the paper is recomputable from this file plus the per-panel `results_long.csv`. The five per-trace CSVs (`traces/aggregated/trace_*_*.csv`) underlie the case studies in Appendix F.
+<div align="center">
+<img src="figures/s1_f4_tight_budget.png" alt="Tight budget dumbbell" width="78%"/>
+</div>
 
-## Active-experiment studies (new)
+Same graphs, same observational data, same seeds — budget cut from `|I*| + 1` to `|I*|`.
+Slack plays no part in the instance rejection policy, so the tight run is paired with the
+main run instance by instance.
 
-Two follow-up studies build on this benchmark, both in the *active experiment* direction — the
-agent must choose its next intervention, not just propose an answer. Code is additive: nothing
-above changes, and the panels above still reproduce.
+<div align="center">
 
-| | Study 1 | Study 2 |
-|---|---|---|
-| Question | Is an LLM agent bad at **choosing experiments** or at **reading their results**? | Can the LLM be moved to the role it is actually good at? |
-| Method | Factorise the agent into `selector x inferencer` and run the full 5x2 cross-product on paired instances | **PROBE** — the LLM audits PC's skeleton, BIC turns candidates into a posterior, exact expected-information-gain picks each experiment, and a closed-form interventional likelihood updates the posterior |
-| Runner | `run_study1_decompose.py` | `run_study2_probe.py` |
-| Script | `bash scripts/study1.sh main` | `bash scripts/study2.sh main` |
-| Scale | 720 episodes, ~25 min, ~$0.6 | 960 episodes, ~16 min, ~$0.8 |
+| Comparison | main · p / W-T-L | **tight · p / W-T-L** |
+|:---|:---|:---|
+| RauMa (qwen) vs `random` | 0.285 · 7-30-3 | **0.017 · 12-23-5** |
+| `eig` vs `random` | 0.534 · 7-29-4 | 0.061 · 12-22-6 |
+| RauMa (qwen) vs `eig` | 0.317 · 1-39-0 | 0.500 · 3-35-2 |
 
-Headline from the full runs — **1 920 episodes, 100 % completed, $1.38 total**:
+</div>
 
-- **Study 1 (SPLICE)** — the selection gap is `-0.025` (p = 0.072, not significant) while the
-  inference gap is `+0.279` (p = 2.5e-07, losing on 36 of 40 paired instances). Small models
-  pick interventions as well as exact Bayesian experimental design — 39 of 40 instances tie
-  with EIG — and then cannot convert the outcomes into edge orientations.
-- **Study 2 (PROBE)** — `0.950` directed F1 against `0.857` for the classical PC + greedy + Meek
-  pipeline (**+0.093**, p = 0.0008) and `0.000-0.180` for the end-to-end LLM agent (40-0-0).
-  The LLM proposer's contribution crosses zero at n_obs ~ 150: it helps only while the
-  classical front-end is starved of data.
+Under a tight budget RauMa is the **only** rule that separates from random — exact EIG does
+not (p = 0.061) — while still tying EIG.
 
-> **[RESULTS.md](RESULTS.md) — full write-up with all nine figures, paired significance tests,
-> ablations, and threats to validity.**
+> [!WARNING]
+> **Stated against interest:** the effect is small (0.032 F1) and p = 0.017 is uncorrected.
+> Across these five comparisons it would not survive a Bonferroni threshold of 0.01.
 
-Read `docs/IDEAS.md` for the design rationale and `docs/RUNNING_ON_SERVER.md` for the run
-procedure. `docs/REPO_OVERVIEW.md` is a standalone summary of the benchmark itself.
+### The scaffold is worth more than the model
 
-### Environment
+<div align="center">
+<img src="figures/s1_f5_efficiency.png" alt="Tokens spent versus accuracy bought" width="82%"/>
+</div>
 
-The studies use their own conda environment (the panels above still use `uv sync`):
+<div align="center">
 
-```bash
-bash scripts/setup_env.sh      # creates `acdb-active`, verifies the install, runs the tests
-conda activate acdb-active
-echo 'OPENROUTER_API_KEY=sk-or-v1-...' > .env
-bash scripts/study1.sh smoke   # 72 episodes,  ~1 min
-bash scripts/study2.sh smoke   # 100 episodes, ~1 min
-```
+| Arm | tokens in | tokens out | calls | $ / episode | directed F1 |
+|:---|---:|---:|---:|---:|---:|
+| **RauMa** · gpt-4o-mini | 944 | 78 | 1.82 | $0.00019 | 0.856 |
+| **RauMa** · qwen | 1 395 | 98 | 1.77 | $0.00031 | **0.861** |
+| no scaffold · gpt-4o-mini | 35 163 | 241 | 3.77 | $0.00365 | **0.000** |
+| no scaffold · qwen | 51 556 | 477 | 3.77 | $0.00749 | 0.152 |
+
+</div>
+
+Removing the scaffold costs **+0.353 F1** (qwen, 33-2-5) and **+0.532** (gpt-4o-mini,
+34-6-0) while spending **30× more tokens**.
+
+<details>
+<summary><b>About that 0.000 — it is not a crash</b></summary>
+
+<br/>
+
+Every episode completed. Under 35 k tokens of raw data, gpt-4o-mini submits
+`submit_directed = 0.00` and `submit_undirected = 5.03`: it returns **every edge
+undirected**, abstaining from orientation entirely, so directed F1 is zero by construction.
+Its compelled F1 is 0.275. The mechanism is the finding; the bare zero is not.
+
+</details>
+
+<br/>
 
 ---
 
-## Software
+<div align="center">
 
-- Python >= 3.12 (`pyproject.toml`).
-- LLM dispatch: `litellm` >= 1.79; native OpenAI calls via `openai` >= 2.30.
-- PC inference: `causal-learn` >= 0.1.4.5.
-- Plus `numpy`, `pandas`, `python-dotenv`, `tenacity`. Locked in `uv.lock`.
+<a id="nemchua"></a>
+
+# 🔬 NemChua — *the LLM proposes what to believe*
+
+</div>
+
+<div align="center">
+<img src="assets/nemchua_flow.svg" alt="NemChua pipeline" width="100%"/>
+</div>
+
+NemChua keeps a posterior over a **finite set of candidate DAGs**, picks each intervention
+by expected information gain over that set, and updates the posterior on the exact
+interventional likelihood. The LLM's only job is to **repair PC's skeleton** — propose up to
+four edge removals and four additions — which seeds the candidate set. One LLM call per
+episode; everything downstream is exact.
+
+Half the hypothesis budget is reserved for the **unedited** PC skeleton, so the model's
+edits can only ever add hypotheses, never delete good ones.
+
+### NemChua beats the classical pipeline
+
+<div align="center">
+<img src="figures/s2_f6_main.png" alt="NemChua main results" width="100%"/>
+</div>
+
+<div align="center">
+
+| Comparison · paired, n = 40 | Δ F1 | p | W-T-L |
+|:---|---:|---:|:---|
+| **NemChua** (gpt-4o-mini) vs `pc_greedy_meek` | **+0.093** | **0.0008** | 14-25-**1** |
+| **NemChua** (qwen) vs `pc_greedy_meek` | +0.059 | 0.047 | 13-23-4 |
+| **NemChua** (qwen) vs `llm_e2e` | **+0.736** | <1e-07 | **40-0-0** |
+
+</div>
+
+NemChua reaches **0.950** (gpt-4o-mini) and **0.916** (qwen) against **0.857** for the
+classical PC + greedy + Meek pipeline, and **0.000 – 0.180** for an end-to-end LLM agent.
+
+### What each component is worth
+
+<div align="center">
+<img src="figures/s2_f8_components.png" alt="Component ablation" width="92%"/>
+</div>
+
+<div align="center">
+
+| Remove … | Δ F1 | p |
+|:---|---:|---:|
+| an informed hypothesis space → random | +0.568 | <1e-07 |
+| the Bayesian posterior update | +0.293 | <1e-07 |
+| skeleton **repair** → whole-graph proposals | +0.236 | <1e-07 |
+| the hybrid space → PC's MEC alone | +0.073 | 0.024 |
+| the LLM proposer → PC skeleton alone | +0.027 qwen · **+0.060 gpt** | 0.20 · **0.0075** |
+| EIG selection → random selection | +0.021 | 0.21 |
+| BIC weighting | +0.003 | — |
+
+</div>
+
+Two results deserve emphasis. **Asking the LLM to repair a skeleton beats asking it for
+whole graphs by 0.236 F1** — the design choice is load-bearing, not cosmetic. And **EIG
+selection does not significantly beat random selection** (p = 0.21): within this
+architecture, the value sits in the hypothesis space, not the decision rule.
+
+### Why it works: a better search space
+
+<div align="center">
+<img src="figures/s2_f9_hypothesis_space.png" alt="Hypothesis-space quality" width="88%"/>
+</div>
+
+<div align="center">
+
+| Hypothesis source | true DAG is in the space | best F1 reachable |
+|:---|---:|---:|
+| random | 0.025 | 0.477 |
+| LLM whole graphs · qwen | 0.125 | 0.693 |
+| PC MEC | 0.400 | 0.847 |
+| PC skeleton | 0.425 | 0.932 |
+| **NemChua** · qwen | 0.500 | 0.944 |
+| **NemChua** · gpt-4o-mini | **0.575** | **0.954** |
+
+</div>
+
+Skeleton repair raises the probability that the true DAG is even *available* to the
+posterior from **42.5 % to 57.5 %**.
+
+### The crossover: the LLM helps only when data is scarce
+
+<div align="center">
+<img src="figures/s2_f7_crossover.png" alt="LLM contribution crossing zero" width="100%"/>
+</div>
+
+<div align="center">
+
+| `n_obs` | 40 | 60 | 120 | 300 | 1000 |
+|:---|---:|---:|---:|---:|---:|
+| **NemChua − PC-skeleton-only** | **+0.058** | +0.018 | +0.010 | −0.021 | −0.009 |
+
+</div>
+
+Monotone, crossing zero at `n_obs ≈ 150`.
+
+> **The LLM proposer earns its keep exactly where PC's skeleton is unreliable, and becomes
+> a mild liability once PC is reliable.**
+
+This is the practically useful statement: it says *when* to spend an LLM call.
+
+<details>
+<summary><b>Consistency check — the same story on a second axis</b></summary>
+
+<br/>
+
+In the `main` run (`n_obs` = 300, levels 0–3) the LLM contribution is +0.060 for
+gpt-4o-mini, apparently contradicting the −0.021 above. Broken out by level:
+
+| level | `d` | PC skeleton only | Δ gpt-4o-mini | Δ qwen |
+|:---:|:---:|---:|---:|---:|
+| 0 | 4 | 0.786 | **+0.175** | **+0.104** |
+| 1 | 6 | 0.920 | +0.045 | +0.003 |
+| 2 | 8 | 0.932 | +0.000 | −0.011 |
+| 3 | 10 | 0.920 | +0.021 | +0.011 |
+
+The gain concentrates at *d* = 4, where the data-to-variable ratio is effectively lowest.
+Same story, second axis: **the LLM helps when the front-end is starved** — whether by small
+*n* or by an unfavourable *n/d* ratio. The two ablations agree.
+
+</details>
+
+<br/>
+
+---
+
+## Threats to validity
+
+<table>
+<tr><td width="34%"><b>Two small models only</b></td>
+<td>Every claim is scoped to small, cheap models. Nothing here licenses a statement about frontier models, for which the balance may well differ.</td></tr>
+
+<tr><td><b>RauMa's tight-budget effect is small and uncorrected</b></td>
+<td>It supports "the axis is live under pressure", not "selection matters a lot".</td></tr>
+
+<tr><td><b>NemChua's <code>n_obs</code> sweep is not comparable to <code>main</code></b></td>
+<td><code>build_seed_map</code> shares one RNG stream across levels, so <code>--levels 1,2</code> and <code>--levels 0,1,2,3</code> draw disjoint seeds (0/10 overlap, verified). The sweep is internally paired across all five settings; it must not be cross-referenced against <code>main</code>.</td></tr>
+
+<tr><td><b>Synthetic SCMs</b></td>
+<td>Linear-Gaussian, faithful by construction, no latent confounding.</td></tr>
+
+<tr><td><b>The symbolic ceiling is not 1.0</b></td>
+<td>The mean-shift test misorients 5.6 % of edges, so reported inference gaps are relative to an imperfect reference.</td></tr>
+</table>
+
+---
+
+## Reproducibility
+
+<div align="center">
+
+| Run | episodes | completed | cost | tokens |
+|:---|---:|---:|---:|---:|
+| RauMa — main | 720 | 720 | $0.636 | 4 145 832 |
+| RauMa — tight budget | 240 | 240 | $0.023 | 89 313 |
+| NemChua — main | 960 | 960 | $0.719 | 4 465 522 |
+| **Total** | **1 920** | **100 %** | **$1.378** | **8.7 M** |
+
+</div>
+
+- **All non-LLM arms are deterministic.** Two independent runs of 60 model-free episodes
+  reproduced byte-identical scores, so run-to-run variation isolates LLM nondeterminism.
+- **Schema reliability:** 0.009 repair calls per episode in RauMa, 0.003 in NemChua, and
+  **zero** failed calls across all 1 920 episodes.
+- Error bars are 95 % CIs over **paired instances**, not over repeated runs — a single run
+  already contains 40 paired instances per arm.
+
+```bash
+bash scripts/setup_env.sh                 # conda env `acdb-active`, verifies install, runs 25 tests
+bash scripts/study1.sh all                # RauMa   — main + tight budget + n_obs + alpha + d12
+bash scripts/study2.sh all                # NemChua — main + n_obs sweep + edits + skeleton hint
+python scripts/make_figures.py --result-dir result --out-dir figures
+```
+
+Every stage checkpoints per episode and takes `--resume`; re-running the same command
+continues where it stopped.
+
+<details>
+<summary><b>Repository map</b></summary>
+
+<br/>
+
+| Path | Contents |
+|:---|:---|
+| `src/causal_discovery/active/` | selectors, inferencers, exact MEC enumeration, Gaussian likelihoods |
+| `run_study1_decompose.py` | **RauMa** — the 5 × 2 grid + end-to-end reference |
+| `run_study2_probe.py` | **NemChua** — the method and its 15 arms |
+| `scripts/study{1,2}.sh` | every stage reported above |
+| `scripts/make_figures.py` | all nine figures, PNG at 300 dpi + PDF |
+| `result/` | episode-level CSVs the figures are drawn from |
+| `docs/BENCHMARK.md` | the underlying ACDB benchmark and its own release |
+| `docs/REPO_OVERVIEW.md` · `docs/IDEAS.md` | benchmark internals · design rationale |
+| `docs/RUNNING_ON_SERVER.md` | server runbook |
+
+**Naming.** `RauMa` is the `llm+meek` arm and `NemChua` is the `probe` arm; the CSVs keep
+those internal identifiers so raw data stays greppable.
+
+</details>
+
+---
+
+<div align="center">
+
+## What to take away
+
+<table>
+<tr>
+<td width="33%" align="center"><h3>1</h3><b>Don't hand an LLM the whole loop</b><br/><br/><sub>Unscaffolded it scores 0.000 – 0.180 against a 0.836 symbolic ceiling, while burning 30× the tokens.</sub></td>
+<td width="33%" align="center"><h3>2</h3><b>Give it the half it is good at</b><br/><br/><sub>Small LLMs choose interventions as well as exact Bayesian design — and cannot convert outcomes into orientations. Let a symbolic engine read.</sub></td>
+<td width="33%" align="center"><h3>3</h3><b>Or give it what Bayes cannot do alone</b><br/><br/><sub>Proposing what to believe. A better hypothesis space beats the classical pipeline — but only while that pipeline is starved of data.</sub></td>
+</tr>
+</table>
+
+</div>

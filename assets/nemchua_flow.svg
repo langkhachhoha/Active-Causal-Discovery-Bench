@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 250" width="920" height="250" role="img" aria-label="NemChua pipeline: PC skeleton, LLM repairs it, candidate DAGs weighted by BIC, expected information gain picks the intervention, exact interventional likelihood updates the posterior, MAP graph submitted">
+  <title>NemChua — the LLM proposes what to believe; Bayes decides what to test</title>
+  <style>
+    .s   { font-family: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .lbl { font-size: 13px; font-weight: 600; fill: #0b0b0b; }
+    .sub { font-size: 10.5px; fill: #52514e; }
+    .tag { font-size: 9.5px; font-weight: 700; letter-spacing: .06em; }
+    .box { fill: #fcfcfb; stroke: #e1e0d9; stroke-width: 1.2; }
+    .llm { fill: #eef5fd; stroke: #2a78d6; stroke-width: 1.6; }
+    .bay { fill: #eaf7f2; stroke: #1baf7a; stroke-width: 1.6; }
+    .wire { fill: none; stroke: #c3c2b7; stroke-width: 1.6; }
+    .pulse { fill: none; stroke: #1baf7a; stroke-width: 2.4; stroke-linecap: round;
+             stroke-dasharray: 24 620; }
+    .bar { fill: #2a78d6; }
+    @media (prefers-reduced-motion: reduce) { .pulse { display: none; } }
+  </style>
+
+  <path class="wire" d="M118 104 H812"/>
+  <path class="pulse" d="M118 104 H812">
+    <animate attributeName="stroke-dashoffset" from="646" to="0" dur="3.8s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.06;.9;1" dur="3.8s" repeatCount="indefinite"/>
+  </path>
+
+  <g class="s">
+    <rect class="box" x="16" y="74" width="102" height="60" rx="10"/>
+    <text class="lbl" x="67" y="99" text-anchor="middle">PC skeleton</text>
+    <text class="sub" x="67" y="116" text-anchor="middle">often wrong</text>
+
+    <rect class="llm" x="142" y="66" width="168" height="76" rx="12">
+      <animate attributeName="stroke-opacity" values="1;.45;1" dur="3.8s" repeatCount="indefinite"/>
+    </rect>
+    <text class="tag" x="226" y="88" text-anchor="middle" fill="#2a78d6">LLM</text>
+    <text class="lbl" x="226" y="107" text-anchor="middle">repairs the skeleton</text>
+    <text class="sub" x="226" y="124" text-anchor="middle">≤ 4 removals, ≤ 4 additions</text>
+
+    <!-- candidate posterior: three bars that re-weight as evidence lands -->
+    <rect class="box" x="334" y="66" width="150" height="76" rx="12"/>
+    <text class="lbl" x="409" y="88" text-anchor="middle">candidate DAGs</text>
+    <g>
+      <rect class="bar" x="356" y="104" width="16" height="26" rx="3">
+        <animate attributeName="height" values="26;10;34;26" dur="3.8s" repeatCount="indefinite"/>
+        <animate attributeName="y" values="104;120;96;104" dur="3.8s" repeatCount="indefinite"/>
+      </rect>
+      <rect class="bar" x="380" y="112" width="16" height="18" rx="3">
+        <animate attributeName="height" values="18;34;8;18" dur="3.8s" repeatCount="indefinite"/>
+        <animate attributeName="y" values="112;96;122;112" dur="3.8s" repeatCount="indefinite"/>
+      </rect>
+      <rect class="bar" x="404" y="118" width="16" height="12" rx="3">
+        <animate attributeName="height" values="12;20;28;12" dur="3.8s" repeatCount="indefinite"/>
+        <animate attributeName="y" values="118;110;102;118" dur="3.8s" repeatCount="indefinite"/>
+      </rect>
+      <rect class="bar" x="428" y="122" width="16" height="8" rx="3">
+        <animate attributeName="height" values="8;14;6;8" dur="3.8s" repeatCount="indefinite"/>
+        <animate attributeName="y" values="122;116;124;122" dur="3.8s" repeatCount="indefinite"/>
+      </rect>
+      <path class="wire" d="M350 131 H452" stroke-width="1"/>
+    </g>
+
+    <rect class="bay" x="508" y="66" width="150" height="76" rx="12">
+      <animate attributeName="stroke-opacity" values="1;.45;1" dur="3.8s" begin="1.3s" repeatCount="indefinite"/>
+    </rect>
+    <text class="tag" x="583" y="88" text-anchor="middle" fill="#1baf7a">BAYESIAN</text>
+    <text class="lbl" x="583" y="107" text-anchor="middle">EIG picks do(X)</text>
+    <text class="sub" x="583" y="124" text-anchor="middle">max expected info gain</text>
+
+    <rect class="bay" x="682" y="66" width="152" height="76" rx="12">
+      <animate attributeName="stroke-opacity" values="1;.45;1" dur="3.8s" begin="2.1s" repeatCount="indefinite"/>
+    </rect>
+    <text class="tag" x="758" y="88" text-anchor="middle" fill="#1baf7a">BAYESIAN</text>
+    <text class="lbl" x="758" y="107" text-anchor="middle">posterior update</text>
+    <text class="sub" x="758" y="124" text-anchor="middle">exact interventional lik.</text>
+
+    <rect class="box" x="852" y="74" width="56" height="60" rx="10"/>
+    <text class="lbl" x="880" y="99" text-anchor="middle">MAP</text>
+    <text class="sub" x="880" y="116" text-anchor="middle">DAG</text>
+
+    <path class="wire" d="M758 146 V178 H409 V146" stroke-dasharray="4 4"/>
+    <text class="sub" x="583" y="196" text-anchor="middle">each intervention re-weights the candidates; the loop runs until the budget is spent</text>
+    <text class="sub" x="583" y="216" text-anchor="middle" font-style="italic">the LLM is called once per episode — everything downstream is exact</text>
+
+    <text class="sub" x="16" y="32" font-size="12" font-weight="700" fill="#0b0b0b">NemChua</text>
+    <text class="sub" x="86" y="32">the LLM proposes what to believe; Bayes decides what to test</text>
+  </g>
+</svg>

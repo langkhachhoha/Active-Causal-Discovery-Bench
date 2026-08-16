@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 210" width="920" height="210" role="img" aria-label="RauMa pipeline: observe, PC front-end, LLM selects the next intervention, symbolic Meek engine reads the outcome, submit the graph">
+  <title>RauMa — the LLM proposes, Meek disposes</title>
+  <style>
+    .s   { font-family: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .lbl { font-size: 13px; font-weight: 600; fill: #0b0b0b; }
+    .sub { font-size: 10.5px; fill: #52514e; }
+    .tag { font-size: 9.5px; font-weight: 700; letter-spacing: .06em; }
+    .box { fill: #fcfcfb; stroke: #e1e0d9; stroke-width: 1.2; }
+    .llm { fill: #eef5fd; stroke: #2a78d6; stroke-width: 1.6; }
+    .sym { fill: #fdf0ea; stroke: #eb6834; stroke-width: 1.6; }
+    .wire { fill: none; stroke: #c3c2b7; stroke-width: 1.6; }
+    .pulse { fill: none; stroke: #2a78d6; stroke-width: 2.4; stroke-linecap: round;
+             stroke-dasharray: 26 660; }
+    @media (prefers-reduced-motion: reduce) { .pulse { display: none; } }
+  </style>
+
+  <!-- the spine every stage sits on -->
+  <path id="spine" class="wire" d="M96 96 H824"/>
+  <!-- one travelling highlight; the loop is the point: budget is spent one step at a time -->
+  <path class="pulse" d="M96 96 H824">
+    <animate attributeName="stroke-dashoffset" from="686" to="0" dur="3.6s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.06;.9;1" dur="3.6s" repeatCount="indefinite"/>
+  </path>
+
+  <g class="s">
+    <!-- 1 observe -->
+    <rect class="box" x="16" y="64" width="112" height="64" rx="10"/>
+    <text class="lbl" x="72" y="90" text-anchor="middle">observe</text>
+    <text class="sub" x="72" y="108" text-anchor="middle">n = 300 rows</text>
+
+    <!-- 2 PC -->
+    <rect class="box" x="152" y="64" width="120" height="64" rx="10"/>
+    <text class="lbl" x="212" y="90" text-anchor="middle">PC front-end</text>
+    <text class="sub" x="212" y="108" text-anchor="middle">CPDAG, 3–5 edges open</text>
+
+    <!-- 3 LLM selector -->
+    <rect class="llm" x="296" y="56" width="168" height="80" rx="12">
+      <animate attributeName="stroke-opacity" values="1;.45;1" dur="3.6s" repeatCount="indefinite"/>
+    </rect>
+    <text class="tag" x="380" y="78" text-anchor="middle" fill="#2a78d6">LLM</text>
+    <text class="lbl" x="380" y="98" text-anchor="middle">chooses the experiment</text>
+    <text class="sub" x="380" y="116" text-anchor="middle">picks optimally 91.3% of steps</text>
+
+    <!-- 4 intervene -->
+    <rect class="box" x="488" y="64" width="118" height="64" rx="10"/>
+    <text class="lbl" x="547" y="90" text-anchor="middle">intervene</text>
+    <text class="sub" x="547" y="108" text-anchor="middle">do(X = μ + 3σ)</text>
+
+    <!-- 5 symbolic inferencer -->
+    <rect class="sym" x="630" y="56" width="176" height="80" rx="12">
+      <animate attributeName="stroke-opacity" values="1;.45;1" dur="3.6s" begin="1.2s" repeatCount="indefinite"/>
+    </rect>
+    <text class="tag" x="718" y="78" text-anchor="middle" fill="#eb6834">SYMBOLIC</text>
+    <text class="lbl" x="718" y="98" text-anchor="middle">reads the outcome</text>
+    <text class="sub" x="718" y="116" text-anchor="middle">mean-shift test + Meek closure</text>
+
+    <!-- 6 submit -->
+    <rect class="box" x="830" y="64" width="74" height="64" rx="10"/>
+    <text class="lbl" x="867" y="90" text-anchor="middle">submit</text>
+    <text class="sub" x="867" y="108" text-anchor="middle">DAG</text>
+
+    <!-- budget loop -->
+    <path class="wire" d="M718 140 V166 H380 V140" stroke-dasharray="4 4"/>
+    <text class="sub" x="549" y="182" text-anchor="middle">repeat until the budget of |I*| + 1 interventions is spent</text>
+
+    <text class="sub" x="16" y="28" font-size="12" font-weight="700" fill="#0b0b0b">RauMa</text>
+    <text class="sub" x="74" y="28">the LLM proposes, Meek disposes</text>
+  </g>
+</svg>

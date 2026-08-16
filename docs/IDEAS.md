@@ -88,14 +88,14 @@ inference_gap = (oracle + meek)  −  (oracle + llm)    ← mất mát do SUY LU
 
 ---
 
-# Study 2 — *PROBE: LLM đề xuất không gian giả thuyết, quyết định để cho toán học*
+# Study 2 — *NemChua: LLM đề xuất không gian giả thuyết, quyết định để cho toán học*
 
 **File:** `run_study2_probe.py` · **Chạy:** `bash scripts/study2.sh main`
 
 ### Câu chuyện
 
 Study 1 nói: LLM dở ở **suy luận số**, không dở ở **chọn thí nghiệm**. Vậy thiết kế lại vai trò
-của nó. PROBE tách agent làm 3 phần, LLM chỉ giữ đúng phần nó giỏi:
+của nó. NemChua tách agent làm 3 phần, LLM chỉ giữ đúng phần nó giỏi:
 
 1. **Propose** — LLM **không** bịa đồ thị từ đầu. Nó **kiểm toán skeleton của PC**:
    nhìn ma trận tương quan + tương quan riêng phần (điều kiện trên mọi biến còn lại) và chỉ ra
@@ -157,7 +157,7 @@ thắng **100%** số lần thử.
 | `llm_e2e` | 0.171 | — | — |
 
 > **Ba thông điệp:**
-> 1. PROBE (0.926) vượt cả baseline cổ điển (0.845) lẫn LLM agent (0.171), **và rẻ hơn ~7× token**
+> 1. NemChua (0.926) vượt cả baseline cổ điển (0.845) lẫn LLM agent (0.171), **và rẻ hơn ~7× token**
 >    so với `llm_e2e` (979 vs 6717 prompt token/episode).
 > 2. **Mọi ablation đều tụt** — EIG, cập nhật Bayes, chấm BIC, chất lượng không gian giả thuyết,
 >    mỗi thứ đều đóng góp đo được.
@@ -168,7 +168,7 @@ thắng **100%** số lần thử.
 
 `gpt-4o-mini` sửa rất mạnh tay (trung bình 3.5 xoá + 3.1 thêm, gần chạm trần 4/4), `qwen3-coder-30b`
 dè dặt hơn (2.8 + 2.6). Cột `repair_remove` / `repair_add` định lượng chính xác chuyện này, và
-đó là lý do PROBE có guard "một nửa ngân sách giả thuyết luôn dành cho skeleton gốc của PC" —
+đó là lý do NemChua có guard "một nửa ngân sách giả thuyết luôn dành cho skeleton gốc của PC" —
 để LLM chỉ có thể **thêm** giả thuyết, không bao giờ đẩy giả thuyết mặc định ra ngoài.
 
 ### Ablation/analysis có sẵn

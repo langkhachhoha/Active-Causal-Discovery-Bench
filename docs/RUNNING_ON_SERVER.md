@@ -18,7 +18,7 @@ Rồi push:
 
 ```bash
 git add -A
-git commit -m "Add active-experiment studies: selection/inference decomposition + PROBE"
+git commit -m "Add active-experiment studies: selection/inference decomposition + NemChua"
 git push origin main
 ```
 
@@ -130,7 +130,7 @@ Số episode là **đếm chính xác**. Thời gian/chi phí ngoại suy từ �
 ngoại suy từ đó nên thiên về cao.
 
 Tổng cả hai bài: **~6 000 episode, dưới ~2.5 giờ, dưới ~$5**. Rẻ và nhanh hơn nhiều so với
-repo gốc vì hai model đều nhẹ và PROBE chỉ tốn 1 call LLM mỗi episode.
+repo gốc vì hai model đều nhẹ và NemChua chỉ tốn 1 call LLM mỗi episode.
 
 Riêng ablation `tightbudget` là stage quan trọng nhất về mặt khoa học: nó dùng **cùng seed,
 cùng đồ thị, cùng dữ liệu quan sát** như `main`, chỉ khác `budget = |I*|` thay vì `|I*| + 1`,
@@ -203,7 +203,7 @@ Sản phẩm nằm trong `<run-dir>/analysis/`:
 | `t*.csv` | từng bảng dạng CSV |
 | `fig_grid.png` | Study 1: lưới selector × inferencer |
 | `fig_regret.png` | Study 1: regret chọn thí nghiệm theo từng bước |
-| `fig_main.png` | Study 2: PROBE so với baseline và ablation |
+| `fig_main.png` | Study 2: NemChua so với baseline và ablation |
 | `fig_entropy.png` | Study 2: entropy posterior giảm theo từng thí nghiệm |
 
 Kéo về máy local:

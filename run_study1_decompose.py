@@ -1,4 +1,4 @@
-"""Study 1 — Decomposing active causal discovery into selection and inference.
+"""RauMa — decomposing active causal discovery into selection and inference.
 
 An active causal-discovery agent does two different jobs: it *chooses experiments*
 and it *infers structure from their results*. A single end-to-end score cannot say

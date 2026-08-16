@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 260" width="920" height="260" role="img" aria-label="RauMa and NemChua: two independent studies on LLM-driven active causal discovery">
+  <title>RauMa · NemChua — two independent studies on active causal discovery</title>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d366b"/>
+      <stop offset="55%" stop-color="#184f95"/>
+      <stop offset="100%" stop-color="#256abf"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#3987e5" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#3987e5" stop-opacity="0"/>
+    </radialGradient>
+    <style>
+      .s    { font-family: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+      .name { font-size: 40px; font-weight: 800; fill: #ffffff; letter-spacing: -.01em; }
+      .kick { font-size: 13px; fill: #cde2fb; }
+      .meta { font-size: 11.5px; fill: #9ec5f4; letter-spacing: .04em; }
+      .rule { stroke: #3987e5; stroke-width: 1; opacity: .5; }
+      .node { fill: #cde2fb; }
+      .edge { stroke: #6da7ec; stroke-width: 1.4; fill: none; }
+      /* a class selector beats a presentation attribute, so the second edge needs
+         its own class rather than a stroke="" override */
+      .live  { stroke: #1baf7a; stroke-width: 2.2; fill: none; stroke-linecap: round;
+               stroke-dasharray: 5 7; }
+      .live2 { stroke: #eda100; stroke-width: 2.2; fill: none; stroke-linecap: round;
+               stroke-dasharray: 5 7; }
+      @media (prefers-reduced-motion: reduce) { .live { animation: none; } }
+    </style>
+  </defs>
+
+  <rect width="920" height="260" fill="url(#sky)"/>
+  <ellipse cx="720" cy="120" rx="300" ry="180" fill="url(#glow)">
+    <animate attributeName="rx" values="300;340;300" dur="9s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values=".7;1;.7" dur="9s" repeatCount="indefinite"/>
+  </ellipse>
+
+  <!-- a small causal graph, orienting itself as the banner breathes -->
+  <g transform="translate(660 46)">
+    <path class="edge" d="M60 20 L20 78"/>
+    <path class="edge" d="M60 20 L120 66"/>
+    <path class="edge" d="M20 78 L78 132"/>
+    <path class="edge" d="M120 66 L78 132"/>
+    <path class="edge" d="M120 66 L168 122" opacity=".5"/>
+    <!-- the edge under test: dashes march, then it locks in -->
+    <path class="live" d="M60 20 L20 78">
+      <animate attributeName="stroke-dashoffset" from="60" to="0" dur="2.2s" repeatCount="indefinite"/>
+    </path>
+    <path class="live2" d="M120 66 L78 132">
+      <animate attributeName="stroke-dashoffset" from="0" to="60" dur="2.8s" repeatCount="indefinite"/>
+    </path>
+    <g class="node">
+      <circle cx="60"  cy="20"  r="7"><animate attributeName="r" values="7;9;7" dur="2.2s" repeatCount="indefinite"/></circle>
+      <circle cx="20"  cy="78"  r="7"><animate attributeName="r" values="7;9;7" dur="2.2s" begin=".5s" repeatCount="indefinite"/></circle>
+      <circle cx="120" cy="66"  r="7"><animate attributeName="r" values="7;9;7" dur="2.2s" begin="1s"  repeatCount="indefinite"/></circle>
+      <circle cx="78"  cy="132" r="7"><animate attributeName="r" values="7;9;7" dur="2.2s" begin="1.5s" repeatCount="indefinite"/></circle>
+      <circle cx="168" cy="122" r="6" opacity=".6"/>
+    </g>
+  </g>
+
+  <g class="s">
+    <text class="meta" x="48" y="52">ACTIVE CAUSAL DISCOVERY · TWO INDEPENDENT STUDIES</text>
+    <text class="name" x="48" y="106">RauMa<tspan fill="#6da7ec" font-weight="400"> · </tspan>NemChua</text>
+    <line class="rule" x1="48" y1="128" x2="560" y2="128"/>
+    <text class="kick" x="48" y="154">Small language models choose interventions as well as exact Bayesian design —</text>
+    <text class="kick" x="48" y="174">and cannot read the results they come back with.</text>
+    <text class="meta" x="48" y="212">1 920 EPISODES · 100% COMPLETED · $1.38 · 2 MODELS UNDER 30B</text>
+  </g>
+</svg>

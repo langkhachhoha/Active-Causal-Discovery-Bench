@@ -1,4 +1,4 @@
-"""Study 2 — PROBE: LLM-proposed hypothesis spaces + exact Bayesian experimental design.
+"""NemChua — LLM-proposed hypothesis spaces + exact Bayesian experimental design.
 
 Arms
 ----
@@ -84,9 +84,9 @@ from causal_discovery.active.probe import (  # noqa: E402
 #   pc_skeleton   all acyclic orientations of PC's skeleton  (no LLM — isolates the LLM's edits)
 #   llm_repair    PC's skeleton edited by the LLM, orientations enumerated
 #   llm_graphs    whole DAGs invented by the LLM
-#   hybrid        llm_repair + pc_mec                        (this is PROBE)
+#   hybrid        llm_repair + pc_mec                        (this is NemChua)
 #   random        random DAGs                                (space-quality floor)
-PROBE_ARMS: dict[str, dict[str, Any]] = {
+NEMCHUA_ARMS: dict[str, dict[str, Any]] = {
     "probe":            dict(hypothesis_source="hybrid",        select_rule="eig",    use_bic=True,  use_update=True,  submit_mode="map"),
     "probe_repair_only": dict(hypothesis_source="llm_repair",   select_rule="eig",    use_bic=True,  use_update=True,  submit_mode="map"),
     "probe_llm_graphs": dict(hypothesis_source="llm_graphs",    select_rule="eig",    use_bic=True,  use_update=True,  submit_mode="map"),
@@ -109,7 +109,7 @@ DEFAULT_ARMS = (
 )
 
 _LLM_SOURCES = {"llm_repair", "llm_graphs", "hybrid", "hybrid_graphs"}
-LLM_ARMS = {"llm_e2e"} | {name for name, cfg in PROBE_ARMS.items() if cfg["hypothesis_source"] in _LLM_SOURCES}
+LLM_ARMS = {"llm_e2e"} | {name for name, cfg in NEMCHUA_ARMS.items() if cfg["hypothesis_source"] in _LLM_SOURCES}
 
 EPISODE_COLUMNS = [
     "run_id", "timestamp_utc", "study", "arm", "model", "model_tag", "level", "seed",
@@ -211,7 +211,7 @@ def main() -> int:
     levels = parse_levels(args.levels)
     models = [m.strip() for m in args.models.split(",") if m.strip()]
     arms = [a.strip() for a in args.arms.split(",") if a.strip()]
-    known = set(PROBE_ARMS) | set(BASELINE_ARMS)
+    known = set(NEMCHUA_ARMS) | set(BASELINE_ARMS)
     for arm in arms:
         if arm not in known:
             raise SystemExit(f"unknown arm {arm!r}; available: {sorted(known)}")
@@ -362,7 +362,7 @@ def main() -> int:
                     max_skeleton_edits=args.max_skeleton_edits,
                     max_skeleton_variants=args.max_skeleton_variants,
                     max_dags_per_skeleton=args.max_dags_per_skeleton,
-                    **PROBE_ARMS[item.arm],
+                    **NEMCHUA_ARMS[item.arm],
                 )
 
             row.update(result.metrics)
