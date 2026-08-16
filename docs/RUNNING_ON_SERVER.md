@@ -114,16 +114,25 @@ tail -f logs/all.log
 
 ### Ước lượng thời gian và chi phí
 
-| Lệnh | Số episode | Thời gian (workers=6) | Chi phí |
-|---|---|---|---|
-| `study1.sh smoke` | 72 | ~2 phút | ~$0.01 |
-| `study1.sh main` | ~1 400 | ~2–4 giờ | ~$3–6 |
-| `study1.sh ablation` | ~1 200 | ~1–2 giờ | ~$2–4 |
-| `study2.sh smoke` | 100 | ~3 phút | ~$0.02 |
-| `study2.sh main` | ~1 000 | ~2–4 giờ | ~$2–5 |
-| `study2.sh ablation` | ~1 300 | ~2–3 giờ | ~$2–4 |
+Số episode là **đếm chính xác**. Thời gian/chi phí ngoại suy từ đo thật ở `d = 10`
+(level khó nhất của `main`) nên đây là ước lượng **thiên về cao**.
 
-Tổng dưới ~$20 cho cả hai bài. Chỉnh tốc độ/độ mạnh bằng biến môi trường:
+| Lệnh | Số episode | Thời gian (workers=6) | Chi phí |
+|---|---:|---|---|
+| `study1.sh smoke` | 72 | ~1 phút | ~$0.07 |
+| `study1.sh main` | **720** | ~25 phút | ~$0.6 |
+| `study1.sh ablation` | **984** | ~30 phút | ~$0.8 |
+| `study2.sh smoke` | 100 | ~1 phút | ~$0.09 |
+| `study2.sh main` | **960** | ~16 phút | ~$0.8 |
+| `study2.sh ablation` | **1 532** | ~25 phút | ~$1.2 |
+
+Tổng cả hai bài: **~4 200 episode, dưới ~1.5 giờ, dưới ~$4**. Rẻ và nhanh hơn nhiều so với
+repo gốc vì hai model đều nhẹ và PROBE chỉ tốn 1 call LLM mỗi episode.
+
+> Vì rẻ như vậy nên cứ mạnh dạn tăng `--seeds-per-level` lên 15–20 để CI hẹp lại —
+> đó là thứ reviewer workshop hay soi. Gấp đôi seed ≈ gấp đôi thời gian và tiền.
+
+Chỉnh tốc độ/độ mạnh bằng biến môi trường:
 
 ```bash
 ACDB_WORKERS=12 bash scripts/study1.sh main            # nhiều luồng hơn (coi chừng rate limit)

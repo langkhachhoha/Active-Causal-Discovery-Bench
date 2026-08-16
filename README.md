@@ -189,6 +189,7 @@ above changes, and the panels above still reproduce.
 | Method | Factorise the agent into `selector x inferencer` and run the full 5x2 cross-product on paired instances | **PROBE** — the LLM audits PC's skeleton, BIC turns candidates into a posterior, exact expected-information-gain picks each experiment, and a closed-form interventional likelihood updates the posterior |
 | Runner | `run_study1_decompose.py` | `run_study2_probe.py` |
 | Script | `bash scripts/study1.sh main` | `bash scripts/study2.sh main` |
+| Scale | 720 episodes, ~25 min, ~$0.6 | 960 episodes, ~16 min, ~$0.8 |
 
 Headline from the smoke runs (d = 4-6, two light OpenRouter models):
 
@@ -210,8 +211,8 @@ The studies use their own conda environment (the panels above still use `uv sync
 bash scripts/setup_env.sh      # creates `acdb-active`, verifies the install, runs the tests
 conda activate acdb-active
 echo 'OPENROUTER_API_KEY=sk-or-v1-...' > .env
-bash scripts/study1.sh smoke   # ~2 min, ~$0.01
-bash scripts/study2.sh smoke   # ~3 min, ~$0.02
+bash scripts/study1.sh smoke   # 72 episodes,  ~1 min
+bash scripts/study2.sh smoke   # 100 episodes, ~1 min
 ```
 
 ---
