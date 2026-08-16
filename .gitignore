@@ -86,8 +86,14 @@ reports/figure_prototypes/
 LLM_*.md
 llm_call_*.md
 _llm_call*.json
-/RESULTS.md
 /*.txt
+
+# The active-experiment write-up and its figures ship with the repo; the rule
+# above this block was scoped to the parent paper's scratch notes.
+!/RESULTS.md
+figures/*
+!figures/*.png
+!figures/*.pdf
 
 # === GitHub release scope (NeurIPS submission code source) ===
 # The published repo carries only what the appendix references: runnable
@@ -124,6 +130,7 @@ scripts/*
 !scripts/study1.sh
 !scripts/study2.sh
 !scripts/analyze.py
+!scripts/make_figures.py
 
 # Keep episode/step CSVs, manifests and the analysis outputs; drop the bulky raw call log.
 traces/study1/**/events.jsonl

@@ -191,17 +191,22 @@ above changes, and the panels above still reproduce.
 | Script | `bash scripts/study1.sh main` | `bash scripts/study2.sh main` |
 | Scale | 720 episodes, ~25 min, ~$0.6 | 960 episodes, ~16 min, ~$0.8 |
 
-Headline from the smoke runs (d = 4-6, two light OpenRouter models):
+Headline from the full runs — **1 920 episodes, 100 % completed, $1.38 total**:
 
-- **Study 1** — the selection gap is `0.000` and the inference gap is the entire end-to-end gap
-  (0.52 for gpt-4o-mini, 0.27 for qwen3-coder-30b). Small models pick experiments as well as an
-  oracle and then cannot read the results.
-- **Study 2** — PROBE reaches `0.926` directed F1 against `0.845` for the classical `pc_greedy`
-  baseline and `0.171` for the end-to-end LLM agent, using ~7x fewer prompt tokens. Every
-  ablation degrades, and asking the LLM to *invent* graphs instead of *audit* one costs 0.25 F1.
+- **Study 1 (SPLICE)** — the selection gap is `-0.025` (p = 0.072, not significant) while the
+  inference gap is `+0.279` (p = 2.5e-07, losing on 36 of 40 paired instances). Small models
+  pick interventions as well as exact Bayesian experimental design — 39 of 40 instances tie
+  with EIG — and then cannot convert the outcomes into edge orientations.
+- **Study 2 (PROBE)** — `0.950` directed F1 against `0.857` for the classical PC + greedy + Meek
+  pipeline (**+0.093**, p = 0.0008) and `0.000-0.180` for the end-to-end LLM agent (40-0-0).
+  The LLM proposer's contribution crosses zero at n_obs ~ 150: it helps only while the
+  classical front-end is starved of data.
 
-Read `docs/IDEAS.md` for the full design and `docs/RUNNING_ON_SERVER.md` for the run procedure.
-`docs/REPO_OVERVIEW.md` is a standalone summary of the benchmark itself.
+> **[RESULTS.md](RESULTS.md) — full write-up with all nine figures, paired significance tests,
+> ablations, and threats to validity.**
+
+Read `docs/IDEAS.md` for the design rationale and `docs/RUNNING_ON_SERVER.md` for the run
+procedure. `docs/REPO_OVERVIEW.md` is a standalone summary of the benchmark itself.
 
 ### Environment
 
