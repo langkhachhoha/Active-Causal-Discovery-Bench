@@ -164,6 +164,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n-int", type=int, default=100)
     parser.add_argument("--preflight-seed", type=int, default=20260816)
     parser.add_argument("--eig-max-members", type=int, default=256)
+    parser.add_argument("--budget-slack", type=int, default=-1,
+                        help="override the intervention budget slack (budget = |I*| + slack); "
+                             "-1 keeps each level's default of 1, 0 gives a tight budget")
     parser.add_argument("--evidence-mode", choices=("summary", "raw"), default="summary",
                         help="what the LLM inferencer sees: sufficient statistics or raw rows")
     parser.add_argument("--e2e-max-steps", type=int, default=12)
@@ -228,6 +231,10 @@ def main() -> int:
             },
         )
 
+    # None keeps each level's own slack; 0 makes the budget exactly |I*|, which is the
+    # regime where a wasted experiment can no longer be recovered from.
+    budget_slack = None if args.budget_slack < 0 else args.budget_slack
+
     completed = load_checkpoint(checkpoint_path) if args.resume else {}
     work = make_work(arms, levels, seed_map, models)
     if args.limit:
@@ -247,7 +254,7 @@ def main() -> int:
         with cache_lock:
             if key in instance_cache:
                 return instance_cache[key]
-        built = build_instance(LEVELS[level_id], seed, args.n_obs, args.n_int)
+        built = build_instance(LEVELS[level_id], seed, args.n_obs, args.n_int, budget_slack)
         with cache_lock:
             instance_cache.setdefault(key, built)
             return instance_cache[key]

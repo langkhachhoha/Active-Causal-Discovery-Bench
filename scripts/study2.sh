@@ -50,6 +50,20 @@ ablation)
         run "edits_${E}" --levels 1,2 --seeds-per-level 8 --n-obs 60 --n-int 40 \
             --max-skeleton-edits "$E" --arms probe,probe_repair_only,probe_skel_only
     done
+    # Does the proposer actually need PC's skeleton, or can it work from the correlations alone?
+    # Only the whole-graph proposer responds to this flag -- the repair proposer is defined by
+    # editing PC's skeleton, so it must see it. `probe_skel_only` rides along as the no-LLM
+    # reference on the same instances; compare these rows against the matching `n_obs_60` run.
+    run no_skeleton_hint --levels 1,2 --seeds-per-level 10 --n-obs 60 --n-int 40 \
+        --no-skeleton-hint --arms probe_llm_graphs,probe_skel_only
+    # Tight budget: every experiment must count (see study1.sh for the rationale).
+    run tightbudget --levels 0,1,2,3 --seeds-per-level 10 --n-obs 300 --n-int 150 \
+        --budget-slack 0 --arms oracle,pc_greedy_meek,probe,probe_random_sel,probe_maxdeg_sel
+    # Is anything here an artefact of PC's significance threshold?
+    for A in 0.01 0.10; do
+        run "alpha${A}" --levels 1,2 --seeds-per-level 10 --n-obs 300 --n-int 150 \
+            --alpha "$A" --arms oracle,pc_greedy_meek,probe,probe_skel_only
+    done
     # Largest graph size.
     run d12 --levels 4 --seeds-per-level 8 --n-obs 300 --n-int 150
     ;;

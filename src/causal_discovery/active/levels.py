@@ -48,19 +48,32 @@ def parse_levels(text: str) -> list[int]:
     return values
 
 
-def config_for(level: LevelSpec, n_obs: int, n_int: int):
+def config_for(level: LevelSpec, n_obs: int, n_int: int, budget_slack: int | None = None):
     return make_v1_config(
         d=level.d,
         k=level.k,
         n_obs=n_obs,
         n_int=n_int,
         noise_var=level.noise_var,
-        budget_slack=level.budget_slack,
+        budget_slack=level.budget_slack if budget_slack is None else budget_slack,
     )
 
 
-def build_instance(level: LevelSpec, seed: int, n_obs: int, n_int: int):
-    return build_benchmark_instance(config_for(level, n_obs, n_int), np.random.default_rng(seed))
+def build_instance(
+    level: LevelSpec,
+    seed: int,
+    n_obs: int,
+    n_int: int,
+    budget_slack: int | None = None,
+):
+    """Build one instance; `budget_slack` overrides the level default when given.
+
+    Slack only feeds `budget = |I*| + slack` in `build_benchmark_instance`; it plays no
+    part in the rejection policy. So a tight-budget run lands on the *same* graphs as the
+    matching main run and stays paired with it instance by instance.
+    """
+    config = config_for(level, n_obs, n_int, budget_slack)
+    return build_benchmark_instance(config, np.random.default_rng(seed))
 
 
 def _seed_accepts(level: LevelSpec, seed: int, n_obs: int, n_int: int) -> bool:

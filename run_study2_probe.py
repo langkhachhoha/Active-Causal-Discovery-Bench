@@ -173,6 +173,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--propose-rounds", type=int, default=1)
     parser.add_argument("--max-hypotheses", type=int, default=48)
     parser.add_argument("--eig-outcomes", type=int, default=12, help="MC outcomes per EIG estimate")
+    parser.add_argument("--budget-slack", type=int, default=-1,
+                        help="override the intervention budget slack (budget = |I*| + slack); "
+                             "-1 keeps each level's default of 1, 0 gives a tight budget")
     parser.add_argument("--no-skeleton-hint", action="store_true", help="hide the PC graph from the proposer")
     parser.add_argument("--max-skeleton-edits", type=int, default=4)
     parser.add_argument("--max-skeleton-variants", type=int, default=6)
@@ -245,6 +248,10 @@ def main() -> int:
             },
         )
 
+    # None keeps each level's own slack; 0 makes the budget exactly |I*|, which is the
+    # regime where a wasted experiment can no longer be recovered from.
+    budget_slack = None if args.budget_slack < 0 else args.budget_slack
+
     completed = load_checkpoint(checkpoint_path) if args.resume else {}
     work = make_work(arms, levels, seed_map, models)
     if args.limit:
@@ -264,7 +271,7 @@ def main() -> int:
         with cache_lock:
             if key in instance_cache:
                 return instance_cache[key]
-        built = build_instance(LEVELS[level_id], seed, args.n_obs, args.n_int)
+        built = build_instance(LEVELS[level_id], seed, args.n_obs, args.n_int, budget_slack)
         with cache_lock:
             instance_cache.setdefault(key, built)
             return instance_cache[key]

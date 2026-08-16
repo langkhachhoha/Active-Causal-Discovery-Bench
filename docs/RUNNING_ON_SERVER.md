@@ -121,13 +121,26 @@ Số episode là **đếm chính xác**. Thời gian/chi phí ngoại suy từ �
 |---|---:|---|---|
 | `study1.sh smoke` | 72 | ~1 phút | ~$0.07 |
 | `study1.sh main` | **720** | ~25 phút | ~$0.6 |
-| `study1.sh ablation` | **984** | ~30 phút | ~$0.8 |
+| `study1.sh ablation` | ~**1 900** | ~1 giờ | ~$1.5 |
 | `study2.sh smoke` | 100 | ~1 phút | ~$0.09 |
 | `study2.sh main` | **960** | ~16 phút | ~$0.8 |
-| `study2.sh ablation` | **1 532** | ~25 phút | ~$1.2 |
+| `study2.sh ablation` | ~**2 400** | ~40 phút | ~$1.8 |
 
-Tổng cả hai bài: **~4 200 episode, dưới ~1.5 giờ, dưới ~$4**. Rẻ và nhanh hơn nhiều so với
+`main` của study1 đã đo thật: 720 episode, **$0.508**, 4.1 triệu token. Các con số ablation là
+ngoại suy từ đó nên thiên về cao.
+
+Tổng cả hai bài: **~6 000 episode, dưới ~2.5 giờ, dưới ~$5**. Rẻ và nhanh hơn nhiều so với
 repo gốc vì hai model đều nhẹ và PROBE chỉ tốn 1 call LLM mỗi episode.
+
+Riêng ablation `tightbudget` là stage quan trọng nhất về mặt khoa học: nó dùng **cùng seed,
+cùng đồ thị, cùng dữ liệu quan sát** như `main`, chỉ khác `budget = |I*|` thay vì `|I*| + 1`,
+nên ghép cặp trực tiếp với `main` được. Nếu thiếu thời gian, chạy nó trước tiên:
+
+```bash
+python run_study1_decompose.py --out-dir traces/study1/ablation_tightbudget --resume \
+    --levels 0,1,2,3 --seeds-per-level 10 --n-obs 300 --n-int 150 \
+    --budget-slack 0 --inferencers meek --no-e2e
+```
 
 > Vì rẻ như vậy nên cứ mạnh dạn tăng `--seeds-per-level` lên 15–20 để CI hẹp lại —
 > đó là thứ reviewer workshop hay soi. Gấp đôi seed ≈ gấp đôi thời gian và tiền.

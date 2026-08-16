@@ -39,13 +39,25 @@ main)
     run main --levels 0,1,2,3 --seeds-per-level 10 --n-obs 300 --n-int 150
     ;;
 ablation)
-    # (a) does the diagnosis survive when observational data is scarce / plentiful?
+    # (a) TIGHT BUDGET. In `main` the budget is |I*| + 1, so one wasted experiment is still
+    # recoverable and every selector lands on the same score. At slack 0 the budget is exactly
+    # |I*|: a wasted experiment is unrecoverable and the selection axis becomes load-bearing.
+    # Same seeds and same graphs as `main` (slack does not enter the rejection policy), so
+    # these rows pair instance-by-instance with the main run.
+    run ablation_tightbudget --levels 0,1,2,3 --seeds-per-level 10 --n-obs 300 --n-int 150 \
+        --budget-slack 0 --inferencers meek --no-e2e
+    # (b) does the diagnosis survive when observational data is scarce / plentiful?
     run ablation_n60  --levels 1,2 --seeds-per-level 10 --n-obs 60  --n-int 40
     run ablation_n1000 --levels 1,2 --seeds-per-level 10 --n-obs 1000 --n-int 500
-    # (b) does the LLM inferencer improve when it sees raw rows instead of sufficient statistics?
+    # (c) does the LLM inferencer improve when it sees raw rows instead of sufficient statistics?
     run ablation_rawevidence --levels 1,2 --seeds-per-level 10 --n-obs 300 --n-int 150 \
         --evidence-mode raw --selectors oracle,eig,llm --inferencers llm --no-e2e
-    # (c) the largest graph size
+    # (d) is the diagnosis an artefact of PC's significance threshold?
+    for A in 0.01 0.10; do
+        run "ablation_alpha${A}" --levels 1,2 --seeds-per-level 10 --n-obs 300 --n-int 150 \
+            --alpha "$A" --no-e2e
+    done
+    # (e) the largest graph size
     run ablation_d12 --levels 4 --seeds-per-level 8 --n-obs 300 --n-int 150
     ;;
 all)
