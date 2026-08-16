@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Study 1 — decomposing active causal discovery into selection and inference.
+#
+#   bash scripts/study1.sh smoke     # ~2 min,  ~$0.01  — check everything works
+#   bash scripts/study1.sh main      # ~2-4 h,  ~$3-6   — the paper's main table
+#   bash scripts/study1.sh ablation  # ~1-2 h,  ~$2-4   — sample-size + evidence-format ablations
+#   bash scripts/study1.sh all       # main + ablation
+#
+# Safe to re-run: every stage checkpoints and resumes.
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
+ENV_NAME="${ACDB_ENV:-acdb-active}"
+PY="$(conda run -n "$ENV_NAME" python -c 'import sys; print(sys.executable)' 2>/dev/null || echo python)"
+MODELS="${ACDB_MODELS:-qwen3-coder-30b,gpt-4o-mini}"
+WORKERS="${ACDB_WORKERS:-6}"
+STAGE="${1:-smoke}"
+
+run() {
+    local name="$1"; shift
+    local out="traces/study1/${name}"
+    echo
+    echo "=============================================================="
+    echo " study1 :: ${name}"
+    echo " out    :: ${out}"
+    echo "=============================================================="
+    "$PY" run_study1_decompose.py --out-dir "$out" --models "$MODELS" --workers "$WORKERS" --resume "$@"
+    "$PY" scripts/analyze.py --study 1 --run-dir "$out"
+}
+
+case "$STAGE" in
+smoke)
+    run smoke --levels 0,1 --seeds-per-level 2 --n-obs 300 --n-int 150
+    ;;
+main)
+    # 4 graph sizes x 10 paired instances x (5 selectors x 2 inferencers + end-to-end)
+    run main --levels 0,1,2,3 --seeds-per-level 10 --n-obs 300 --n-int 150
+    ;;
+ablation)
+    # (a) does the diagnosis survive when observational data is scarce / plentiful?
+    run ablation_n60  --levels 1,2 --seeds-per-level 10 --n-obs 60  --n-int 40
+    run ablation_n1000 --levels 1,2 --seeds-per-level 10 --n-obs 1000 --n-int 500
+    # (b) does the LLM inferencer improve when it sees raw rows instead of sufficient statistics?
+    run ablation_rawevidence --levels 1,2 --seeds-per-level 10 --n-obs 300 --n-int 150 \
+        --evidence-mode raw --selectors oracle,eig,llm --inferencers llm --no-e2e
+    # (c) the largest graph size
+    run ablation_d12 --levels 4 --seeds-per-level 8 --n-obs 300 --n-int 150
+    ;;
+all)
+    bash "$0" main
+    bash "$0" ablation
+    ;;
+*)
+    echo "unknown stage '$STAGE' (expected: smoke | main | ablation | all)" >&2
+    exit 1
+    ;;
+esac
+
+echo
+echo "[study1] done. Tables and figures are in traces/study1/*/analysis/"

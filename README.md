@@ -177,6 +177,45 @@ Each `--out-dir` ends up with:
 
 The body and appendices aggregate across panels into `traces/aggregated/per_model_per_level_per_method.csv`. Every number in the paper is recomputable from this file plus the per-panel `results_long.csv`. The five per-trace CSVs (`traces/aggregated/trace_*_*.csv`) underlie the case studies in Appendix F.
 
+## Active-experiment studies (new)
+
+Two follow-up studies build on this benchmark, both in the *active experiment* direction — the
+agent must choose its next intervention, not just propose an answer. Code is additive: nothing
+above changes, and the panels above still reproduce.
+
+| | Study 1 | Study 2 |
+|---|---|---|
+| Question | Is an LLM agent bad at **choosing experiments** or at **reading their results**? | Can the LLM be moved to the role it is actually good at? |
+| Method | Factorise the agent into `selector x inferencer` and run the full 5x2 cross-product on paired instances | **PROBE** — the LLM audits PC's skeleton, BIC turns candidates into a posterior, exact expected-information-gain picks each experiment, and a closed-form interventional likelihood updates the posterior |
+| Runner | `run_study1_decompose.py` | `run_study2_probe.py` |
+| Script | `bash scripts/study1.sh main` | `bash scripts/study2.sh main` |
+
+Headline from the smoke runs (d = 4-6, two light OpenRouter models):
+
+- **Study 1** — the selection gap is `0.000` and the inference gap is the entire end-to-end gap
+  (0.52 for gpt-4o-mini, 0.27 for qwen3-coder-30b). Small models pick experiments as well as an
+  oracle and then cannot read the results.
+- **Study 2** — PROBE reaches `0.926` directed F1 against `0.845` for the classical `pc_greedy`
+  baseline and `0.171` for the end-to-end LLM agent, using ~7x fewer prompt tokens. Every
+  ablation degrades, and asking the LLM to *invent* graphs instead of *audit* one costs 0.25 F1.
+
+Read `docs/IDEAS.md` for the full design and `docs/RUNNING_ON_SERVER.md` for the run procedure.
+`docs/REPO_OVERVIEW.md` is a standalone summary of the benchmark itself.
+
+### Environment
+
+The studies use their own conda environment (the panels above still use `uv sync`):
+
+```bash
+bash scripts/setup_env.sh      # creates `acdb-active`, verifies the install, runs the tests
+conda activate acdb-active
+echo 'OPENROUTER_API_KEY=sk-or-v1-...' > .env
+bash scripts/study1.sh smoke   # ~2 min, ~$0.01
+bash scripts/study2.sh smoke   # ~3 min, ~$0.02
+```
+
+---
+
 ## Software
 
 - Python >= 3.12 (`pyproject.toml`).

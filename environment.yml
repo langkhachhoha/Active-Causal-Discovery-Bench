@@ -1,0 +1,18 @@
+name: acdb-active
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - numpy
+  - pandas
+  - scipy
+  - scikit-learn
+  - matplotlib
+  - pip:
+      - causal-learn>=0.1.4.5
+      - python-dotenv>=1.0
+      - requests>=2.31
+      - tenacity>=9.0
+      - pytest>=8.0
+      - tabulate>=0.9

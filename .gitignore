@@ -95,11 +95,11 @@ _llm_call*.json
 # CSVs. Everything below is kept locally but excluded from the push.
 
 # Top-level folders not part of the code release.
-docs/
+docs/*
 notebooks/
 reports/
 research/
-tests/
+tests/*
 
 # V1 change log is internal; not referenced by the paper.
 /V1_CHANGE_LOG.md
@@ -113,3 +113,21 @@ tests/
 scripts/*
 !scripts/extract_trace_rows.py
 !scripts/ladder_random_floor_sanity.py
+
+# === Active-experiment studies (docs/IDEAS.md) ===
+# These ARE part of the release: re-include them past the parent-paper exclusions above.
+!docs/REPO_OVERVIEW.md
+!docs/IDEAS.md
+!docs/RUNNING_ON_SERVER.md
+!tests/test_active.py
+!scripts/setup_env.sh
+!scripts/study1.sh
+!scripts/study2.sh
+!scripts/analyze.py
+
+# Keep episode/step CSVs, manifests and the analysis outputs; drop the bulky raw call log.
+traces/study1/**/events.jsonl
+traces/study2/**/events.jsonl
+traces/study1/smoke/
+traces/study2/smoke/
+logs/

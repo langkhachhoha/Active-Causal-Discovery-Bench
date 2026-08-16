@@ -16,12 +16,15 @@ dependencies = [
     "openai>=2.30.0",
     "pandas>=3.0.2",
     "python-dotenv>=1.2.2",
+    "requests>=2.31",
     "tenacity>=9.1.4",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "matplotlib>=3.8",
+    "tabulate>=0.9",
 ]
 
 [tool.setuptools]
