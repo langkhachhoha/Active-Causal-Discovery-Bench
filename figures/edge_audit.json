@@ -1,0 +1,255 @@
+{
+ "main_llm": {
+  "random+llm|gpt-4o-mini-2024-07-18": {
+   "episodes": 40,
+   "undirected": 48,
+   "total": 206,
+   "correct": 134,
+   "int_n": 84,
+   "reversed": 46,
+   "int_rev": 38,
+   "pc_n": 96,
+   "spurious": 26,
+   "pc_rev": 8
+  },
+  "eig+llm|gpt-4o-mini-2024-07-18": {
+   "episodes": 40,
+   "undirected": 46,
+   "total": 219,
+   "correct": 143,
+   "int_n": 87,
+   "reversed": 54,
+   "int_rev": 44,
+   "pc_n": 110,
+   "pc_rev": 10,
+   "spurious": 22
+  },
+  "maxdeg+llm|gpt-4o-mini-2024-07-18": {
+   "episodes": 40,
+   "undirected": 34,
+   "total": 217,
+   "correct": 150,
+   "int_n": 91,
+   "reversed": 53,
+   "int_rev": 43,
+   "pc_n": 112,
+   "pc_rev": 10,
+   "spurious": 14
+  },
+  "llm+llm|gpt-4o-mini-2024-07-18": {
+   "episodes": 40,
+   "undirected": 39,
+   "total": 213,
+   "correct": 145,
+   "int_n": 88,
+   "reversed": 47,
+   "int_rev": 40,
+   "pc_n": 104,
+   "pc_rev": 7,
+   "spurious": 21
+  },
+  "oracle+llm|gpt-4o-mini-2024-07-18": {
+   "episodes": 40,
+   "undirected": 41,
+   "total": 219,
+   "correct": 143,
+   "int_n": 86,
+   "reversed": 49,
+   "int_rev": 40,
+   "pc_n": 106,
+   "pc_rev": 9,
+   "spurious": 27
+  },
+  "maxdeg+llm|qwen3-coder-30b-a3b-instruct": {
+   "episodes": 40,
+   "total": 260,
+   "correct": 155,
+   "pc_n": 123,
+   "undirected": 40,
+   "reversed": 75,
+   "pc_rev": 12,
+   "int_n": 107,
+   "int_rev": 63,
+   "spurious": 30
+  },
+  "random+llm|qwen3-coder-30b-a3b-instruct": {
+   "episodes": 40,
+   "total": 240,
+   "correct": 151,
+   "pc_n": 124,
+   "undirected": 33,
+   "reversed": 73,
+   "int_n": 100,
+   "int_rev": 60,
+   "pc_rev": 13,
+   "spurious": 16
+  },
+  "eig+llm|qwen3-coder-30b-a3b-instruct": {
+   "episodes": 40,
+   "total": 255,
+   "correct": 156,
+   "pc_n": 123,
+   "undirected": 76,
+   "reversed": 68,
+   "int_n": 101,
+   "int_rev": 56,
+   "pc_rev": 12,
+   "spurious": 31
+  },
+  "llm+llm|qwen3-coder-30b-a3b-instruct": {
+   "episodes": 40,
+   "total": 227,
+   "correct": 149,
+   "pc_n": 123,
+   "undirected": 68,
+   "reversed": 68,
+   "pc_rev": 12,
+   "int_n": 94,
+   "int_rev": 56,
+   "spurious": 10
+  },
+  "oracle+llm|qwen3-coder-30b-a3b-instruct": {
+   "episodes": 40,
+   "total": 255,
+   "correct": 161,
+   "pc_n": 123,
+   "undirected": 44,
+   "reversed": 75,
+   "pc_rev": 12,
+   "int_n": 113,
+   "int_rev": 63,
+   "spurious": 19
+  }
+ },
+ "main_mech": {
+  "eig+meek|none": {
+   "episodes": 40,
+   "total": 255.0,
+   "correct": 235.0,
+   "reversed": 18.0,
+   "spurious": 2.0,
+   "int_n": 131.0,
+   "int_rev": 7.0,
+   "pc_n": 124.0,
+   "pc_rev": 11.0
+  },
+  "llm+meek|gpt-4o-mini-2024-07-18": {
+   "episodes": 40,
+   "total": 255.0,
+   "correct": 235.0,
+   "reversed": 18.0,
+   "spurious": 2.0,
+   "int_n": 131.0,
+   "int_rev": 7.0,
+   "pc_n": 124.0,
+   "pc_rev": 11.0
+  },
+  "llm+meek|qwen3-coder-30b-a3b-instruct": {
+   "episodes": 40,
+   "total": 255.0,
+   "correct": 236.0,
+   "reversed": 17.0,
+   "spurious": 2.0,
+   "int_n": 131.0,
+   "int_rev": 6.0,
+   "pc_n": 124.0,
+   "pc_rev": 11.0
+  },
+  "maxdeg+meek|none": {
+   "episodes": 40,
+   "total": 255.0,
+   "correct": 235.0,
+   "reversed": 18.0,
+   "spurious": 2.0,
+   "int_n": 131.0,
+   "int_rev": 7.0,
+   "pc_n": 124.0,
+   "pc_rev": 11.0
+  },
+  "oracle+meek|none": {
+   "episodes": 40,
+   "total": 255.0,
+   "correct": 232.0,
+   "reversed": 21.0,
+   "spurious": 2.0,
+   "int_n": 131.0,
+   "int_rev": 10.0,
+   "pc_n": 124.0,
+   "pc_rev": 11.0
+  }
+ },
+ "raw_llm": {
+  "llm+llm|gpt-4o-mini-2024-07-18": {
+   "episodes": 20,
+   "total": 193,
+   "correct": 78,
+   "pc_n": 71,
+   "reversed": 50,
+   "int_n": 57,
+   "int_rev": 31,
+   "undirected": 0,
+   "spurious": 65,
+   "pc_rev": 19
+  },
+  "eig+llm|gpt-4o-mini-2024-07-18": {
+   "episodes": 20,
+   "total": 202,
+   "spurious": 78,
+   "correct": 78,
+   "int_n": 55,
+   "reversed": 46,
+   "int_rev": 28,
+   "pc_n": 69,
+   "undirected": 1,
+   "pc_rev": 18
+  },
+  "oracle+llm|gpt-4o-mini-2024-07-18": {
+   "episodes": 20,
+   "total": 182,
+   "correct": 76,
+   "pc_n": 71,
+   "reversed": 43,
+   "int_n": 48,
+   "int_rev": 27,
+   "undirected": 16,
+   "spurious": 63,
+   "pc_rev": 16
+  },
+  "eig+llm|qwen3-coder-30b-a3b-instruct": {
+   "episodes": 20,
+   "total": 134,
+   "correct": 84,
+   "pc_n": 70,
+   "spurious": 24,
+   "reversed": 26,
+   "int_n": 40,
+   "int_rev": 14,
+   "undirected": 8,
+   "pc_rev": 12
+  },
+  "llm+llm|qwen3-coder-30b-a3b-instruct": {
+   "episodes": 20,
+   "total": 120,
+   "correct": 82,
+   "pc_n": 70,
+   "spurious": 11,
+   "int_n": 39,
+   "undirected": 9,
+   "reversed": 27,
+   "int_rev": 15,
+   "pc_rev": 12
+  },
+  "oracle+llm|qwen3-coder-30b-a3b-instruct": {
+   "episodes": 20,
+   "total": 124,
+   "correct": 83,
+   "pc_n": 70,
+   "spurious": 7,
+   "reversed": 34,
+   "int_n": 47,
+   "int_rev": 22,
+   "undirected": 26,
+   "pc_rev": 12
+  }
+ }
+}

@@ -4,6 +4,8 @@
 #   bash scripts/study1.sh smoke     # ~2 min,  ~$0.01  — check everything works
 #   bash scripts/study1.sh main      # ~2-4 h,  ~$3-6   — the paper's main table
 #   bash scripts/study1.sh ablation  # ~1-2 h,  ~$2-4   — sample-size + evidence-format ablations
+#   bash scripts/study1.sh verifier  # ~2 min,  free     — mean-shift threshold / abstention sweep
+#   bash scripts/study1.sh local     # ~15 min, ~$0.10   — per-edge readout: is it interpretation?
 #   bash scripts/study1.sh all       # main + ablation
 #
 # Safe to re-run: every stage checkpoints and resumes.
@@ -60,12 +62,56 @@ ablation)
     # (e) the largest graph size
     run ablation_d12 --levels 4 --seeds-per-level 8 --n-obs 300 --n-int 150
     ;;
+verifier)
+    # Model-free, deterministic, seconds per run: how much of the mean-shift rule's residual
+    # error is the threshold rather than the evidence, and does abstaining help?
+    for Z in 1.282 1.645 1.960 2.576 3.291; do
+        "$PY" run_study1_decompose.py --out-dir "study1/ablation_verifier/z${Z}" \
+            --levels 0,1,2,3 --seeds-per-level 10 --n-obs 300 --n-int 150 \
+            --selectors random,maxdeg,eig,oracle --inferencers meek --no-e2e --models "" \
+            --meanshift-z "$Z"
+    done
+    for Z in 1.645 1.960 2.576; do
+        "$PY" run_study1_decompose.py --out-dir "study1/ablation_verifier/abstain_z${Z}" \
+            --levels 0,1,2,3 --seeds-per-level 10 --n-obs 300 --n-int 150 \
+            --selectors random,maxdeg,eig,oracle --inferencers meek --no-e2e --models "" \
+            --meanshift-z "$Z" --meanshift-abstain 1.0
+    done
+    # per-decision |Z| log behind the reliability curve (also model-free)
+    for SEL in oracle random maxdeg eig; do
+        SUFFIX=""; [ "$SEL" = oracle ] || SUFFIX="_$SEL"
+        "$PY" run_study1_localreadout.py --mode mechanical --selector "$SEL" \
+            --seed-map-from study1/main/run_manifest.json \
+            --out-dir "study1/localreadout/mechanical${SUFFIX}"
+    done
+    "$PY" scripts/make_rauma_figure_verifier.py --study-dir study1 --out-dir figures
+    ;;
+local)
+    # Does the readout gap survive when the LLM only has to decide ONE edge from ONE tuple?
+    # Same instances, same targets, same neighbourhoods as the mechanical arm; the LLM is
+    # substituted at the single point where evidence becomes an arrow. Three prompt conditions
+    # vary how much of the causal rule it is handed.
+    for M in qwen3-coder-30b gpt-4o-mini; do
+        for PROMPT in stats rule rule_z; do
+            "$PY" run_study1_localreadout.py --mode llm --prompt "$PROMPT" --models "$M" \
+                --seed-map-from study1/main/run_manifest.json --workers "$WORKERS" --resume \
+                --out-dir "study1/localreadout/${M}_${PROMPT}"
+        done
+    done
+    ;;
+rawevidence-paired)
+    # The evidence-format ablation, re-run on the MAIN study's instances so the summary-vs-raw
+    # contrast is paired instance by instance instead of comparing two separate draws.
+    run ablation_rawevidence_paired --levels 1,2 --seeds-per-level 10 --n-obs 300 --n-int 150 \
+        --seed-map-from study1/main/run_manifest.json \
+        --evidence-mode raw --selectors oracle,eig,llm --inferencers llm --no-e2e
+    ;;
 all)
     bash "$0" main
     bash "$0" ablation
     ;;
 *)
-    echo "unknown stage '$STAGE' (expected: smoke | main | ablation | all)" >&2
+    echo "unknown stage '$STAGE' (expected: smoke | main | ablation | verifier | local | rawevidence-paired | all)" >&2
     exit 1
     ;;
 esac

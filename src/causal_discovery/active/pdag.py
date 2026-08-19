@@ -164,8 +164,32 @@ def orient_from_truth(pdag: CPDAG, target: int, true_dag: DAG) -> tuple[CPDAG, i
     return _orient_incident(pdag, target, decide)
 
 
-def mean_shift_threshold(obs_var: float, n_obs: int, int_var: float, n_int: int) -> float:
-    return MEAN_SHIFT_Z_975 * float(np.sqrt(obs_var / max(n_obs, 1) + int_var / max(n_int, 1)))
+def mean_shift_threshold(
+    obs_var: float,
+    n_obs: int,
+    int_var: float,
+    n_int: int,
+    z: float = MEAN_SHIFT_Z_975,
+) -> float:
+    return z * float(np.sqrt(obs_var / max(n_obs, 1) + int_var / max(n_int, 1)))
+
+
+def mean_shift_z(
+    obs_data: np.ndarray,
+    int_data: np.ndarray,
+    node: int,
+) -> float:
+    """Two-sample z statistic for a mean shift at `node` between the two panels."""
+    n_obs = int(obs_data.shape[0])
+    n_int = int(int_data.shape[0])
+    se = float(
+        np.sqrt(
+            obs_data[:, node].var(ddof=1) / max(n_obs, 1)
+            + int_data[:, node].var(ddof=1) / max(n_int, 1)
+        )
+    )
+    diff = float(int_data[:, node].mean() - obs_data[:, node].mean())
+    return abs(diff) / se if se > 0 else 0.0
 
 
 def orient_from_intervention(
@@ -173,10 +197,16 @@ def orient_from_intervention(
     target: int,
     obs_data: np.ndarray,
     int_data: np.ndarray,
+    *,
+    z_threshold: float = MEAN_SHIFT_Z_975,
+    abstain_below: float | None = None,
 ) -> tuple[CPDAG, int]:
-    """Orient edges incident to `target` with the calibrated mean-shift test, then close.
+    """Orient edges incident to `target` with the fixed-threshold mean-shift test, then close.
 
     This is the benchmark's `z_calibrated_mean_shift` rule **plus** Meek closure.
+    `z_threshold` moves the decision boundary; `abstain_below` (when set) makes the rule
+    leave an edge undirected whenever |Z| falls in the ambiguous band
+    `[abstain_below, z_threshold)` instead of forcing the reverse orientation.
     """
     mu_obs = obs_data.mean(axis=0)
     var_obs = obs_data.var(axis=0, ddof=1)
@@ -186,9 +216,13 @@ def orient_from_intervention(
     n_int = int(int_data.shape[0])
 
     def decide(a: int, b: int) -> tuple[int, int] | None:
-        threshold = mean_shift_threshold(float(var_obs[b]), n_obs, float(var_int[b]), n_int)
-        shifted = abs(float(mu_int[b]) - float(mu_obs[b])) > threshold
-        return (a, b) if shifted else (b, a)
+        se = float(np.sqrt(var_obs[b] / max(n_obs, 1) + var_int[b] / max(n_int, 1)))
+        stat = abs(float(mu_int[b]) - float(mu_obs[b])) / se if se > 0 else 0.0
+        if stat > z_threshold:
+            return (a, b)
+        if abstain_below is not None and stat >= abstain_below:
+            return None
+        return (b, a)
 
     return _orient_incident(pdag, target, decide)
 

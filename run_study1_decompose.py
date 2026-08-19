@@ -57,6 +57,7 @@ from causal_discovery.active.levels import (  # noqa: E402
     parse_levels,
     runtime_seed_for,
 )
+from causal_discovery.active.pdag import MEAN_SHIFT_Z_975  # noqa: E402
 from causal_discovery.active.llm_client import (  # noqa: E402
     OpenRouterClient,
     resolve_api_key,
@@ -163,6 +164,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n-obs", type=int, default=200)
     parser.add_argument("--n-int", type=int, default=100)
     parser.add_argument("--preflight-seed", type=int, default=20260816)
+    parser.add_argument("--seed-map-from", default="",
+                        help="reuse the seed map of an earlier run_manifest.json instead of "
+                             "re-running the preflight; keeps an ablation paired with that run")
+    parser.add_argument("--meanshift-z", type=float, default=-1.0,
+                        help="decision threshold of the mean-shift rule (default: 1.96)")
+    parser.add_argument("--meanshift-abstain", type=float, default=-1.0,
+                        help="if set, |Z| in [abstain, threshold) leaves the edge undirected "
+                             "instead of forcing the reverse orientation")
     parser.add_argument("--eig-max-members", type=int, default=256)
     parser.add_argument("--budget-slack", type=int, default=-1,
                         help="override the intervention budget slack (budget = |I*| + slack); "
@@ -213,8 +222,19 @@ def main() -> int:
         levels = [int(x) for x in manifest["levels"]]
     else:
         run_id = run_id_now()
-        print(f"[preflight] building seed map for levels {levels} ...", flush=True)
-        seed_map = build_seed_map(levels, args.seeds_per_level, args.preflight_seed, args.n_obs, args.n_int)
+        if args.seed_map_from:
+            import json
+
+            source = json.loads(Path(args.seed_map_from).read_text(encoding="utf-8"))
+            borrowed = {int(k): [int(x) for x in v] for k, v in source["seed_map"].items()}
+            missing = [lv for lv in levels if lv not in borrowed]
+            if missing:
+                raise SystemExit(f"{args.seed_map_from} has no seeds for levels {missing}")
+            seed_map = {lv: borrowed[lv][: args.seeds_per_level] for lv in levels}
+            print(f"[preflight] reusing seed map from {args.seed_map_from}", flush=True)
+        else:
+            print(f"[preflight] building seed map for levels {levels} ...", flush=True)
+            seed_map = build_seed_map(levels, args.seeds_per_level, args.preflight_seed, args.n_obs, args.n_int)
         write_json_atomic(
             manifest_path,
             {
@@ -234,6 +254,8 @@ def main() -> int:
     # None keeps each level's own slack; 0 makes the budget exactly |I*|, which is the
     # regime where a wasted experiment can no longer be recovered from.
     budget_slack = None if args.budget_slack < 0 else args.budget_slack
+    z_threshold = MEAN_SHIFT_Z_975 if args.meanshift_z < 0 else args.meanshift_z
+    abstain_below = None if args.meanshift_abstain < 0 else args.meanshift_abstain
 
     completed = load_checkpoint(checkpoint_path) if args.resume else {}
     work = make_work(arms, levels, seed_map, models)
@@ -339,6 +361,8 @@ def main() -> int:
                     alpha=args.alpha,
                     runtime_seed=runtime_seed,
                     eig_max_members=args.eig_max_members,
+                    z_threshold=z_threshold,
+                    abstain_below=abstain_below,
                 )
 
             row.update(result.metrics)

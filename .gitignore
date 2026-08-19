@@ -138,3 +138,38 @@ traces/study2/**/events.jsonl
 traces/study1/smoke/
 traces/study2/smoke/
 logs/
+
+# === RauMa revision: verifier-calibration + local-readout additions ===
+# Figure/audit scripts the paper's appendix now cites.
+!scripts/make_rauma_figures.py
+!scripts/make_rauma_figures_v2.py
+!scripts/make_rauma_figure_verifier.py
+!scripts/rauma_edge_audit.py
+!figures/edge_audit.json
+
+# Rendered PNGs duplicate the PDFs the TeX uses and are not referenced by the
+# README, so only the vector versions ship.
+figures/rauma_*.png
+
+# study1/ results: same policy as traces/ — keep episode/step/decision CSVs,
+# manifests and summaries (the paper's numbers recompute from these); drop the
+# bulky raw call log, the resume checkpoints and the smoke run.
+study1/**/events.jsonl
+study1/**/checkpoint.json
+study1/smoke/
+
+# paper/: ship the source that compiles, not the build artifacts or drafts.
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.xdv
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*_backup.tex
+paper/rauma_revised.tex
+paper/rauma_neurips2026.pdf
+
+# Local editor / review scratch.
+*.code-workspace
+/reviews.md
+/paper/REVIEW_VI.md

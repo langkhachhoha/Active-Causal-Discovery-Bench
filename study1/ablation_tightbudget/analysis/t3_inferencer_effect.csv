@@ -1,0 +1,2 @@
+inferencer,model_tag,n,directed_f1,compelled_f1,skeleton_f1,dag_shd,orientation_accuracy,submit_directed,submit_undirected
+meek,none,40,0.833 ±0.060,0.925 ±0.049,0.938 ±0.020,1.275 ±0.384,0.910 ±0.066,6.350 ±0.704,0.025 ±0.049

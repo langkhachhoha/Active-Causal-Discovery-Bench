@@ -1,0 +1,7 @@
+selector,llm,llm,meek,meek,meek
+,gpt-4o-mini-2024-07-18,qwen3-coder-30b-a3b-instruct,gpt-4o-mini-2024-07-18,none,qwen3-coder-30b-a3b-instruct
+eig,0.526,0.523,,0.857,
+llm,0.533,0.52,0.856,,0.861
+maxdeg,0.552,0.524,,0.857,
+oracle,0.516,0.557,,0.836,
+random,0.522,0.54,,0.843,

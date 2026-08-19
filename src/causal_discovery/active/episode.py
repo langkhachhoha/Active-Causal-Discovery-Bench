@@ -17,6 +17,7 @@ from causal_discovery.active.inference import Inferencer, sanitize_graph
 from causal_discovery.active.llm_client import OpenRouterClient, coerce_float, coerce_int
 from causal_discovery.active.mec import enumerate_mec
 from causal_discovery.active.pdag import (
+    MEAN_SHIFT_Z_975,
     dag_v_structures,
     intervention_value,
     orient_from_intervention,
@@ -122,6 +123,8 @@ def run_decomposition_episode(
     runtime_seed: int,
     eig_max_members: int = 256,
     track_eig: bool = True,
+    z_threshold: float = MEAN_SHIFT_Z_975,
+    abstain_below: float | None = None,
 ) -> EpisodeResult:
     """One `selector x inferencer` arm on one instance.
 
@@ -181,7 +184,10 @@ def run_decomposition_episode(
 
         value = intervention_value(obs, target)
         int_data = env.intervene(var=target, value=value)
-        after, resolved = orient_from_intervention(before, target, obs, int_data)
+        after, resolved = orient_from_intervention(
+            before, target, obs, int_data,
+            z_threshold=z_threshold, abstain_below=abstain_below,
+        )
         new_edges = _newly_oriented(before, after)
         correct, wrong = _orientation_accuracy(new_edges, true_dag)
         correct_orientations += correct

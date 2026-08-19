@@ -1,0 +1,127 @@
+{
+  "run_id": "20260819T065904Z",
+  "study": "study1_decompose",
+  "created_at_utc": "2026-08-19T06:59:04.304076+00:00",
+  "levels": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "level_specs": {
+    "0": {
+      "level_id": 0,
+      "d": 4,
+      "k": 4,
+      "noise_var": 1.0,
+      "budget_slack": 1
+    },
+    "1": {
+      "level_id": 1,
+      "d": 6,
+      "k": 6,
+      "noise_var": 1.0,
+      "budget_slack": 1
+    },
+    "2": {
+      "level_id": 2,
+      "d": 8,
+      "k": 8,
+      "noise_var": 1.0,
+      "budget_slack": 1
+    },
+    "3": {
+      "level_id": 3,
+      "d": 10,
+      "k": 10,
+      "noise_var": 1.0,
+      "budget_slack": 1
+    }
+  },
+  "seeds_per_level": 10,
+  "seed_map": {
+    "0": [
+      123393401,
+      295485567,
+      325160078,
+      1719885688,
+      239607114,
+      1279549348,
+      1943031107,
+      1580201974,
+      1078156455,
+      1158667886
+    ],
+    "1": [
+      1470120545,
+      1004126917,
+      1343008841,
+      848528041,
+      433882786,
+      920829464,
+      424836758,
+      1036482875,
+      674912463,
+      1761685205
+    ],
+    "2": [
+      1170454109,
+      1922145947,
+      490919193,
+      113229833,
+      115210587,
+      1528591101,
+      2139245632,
+      1013733486,
+      1205066770,
+      961883866
+    ],
+    "3": [
+      1209483262,
+      1409296086,
+      1868687150,
+      1851410617,
+      1511305649,
+      1221181939,
+      1971979182,
+      672264874,
+      1871593145,
+      1160858884
+    ]
+  },
+  "models": [],
+  "arms": [
+    "random+meek",
+    "maxdeg+meek",
+    "eig+meek",
+    "oracle+meek"
+  ],
+  "args": {
+    "levels": "0,1,2,3",
+    "seeds_per_level": 10,
+    "models": "",
+    "selectors": "random,maxdeg,eig,oracle",
+    "inferencers": "meek",
+    "no_e2e": true,
+    "out_dir": "study1/ablation_verifier/abstain_z1.960",
+    "env_file": ".env",
+    "alpha": 0.05,
+    "n_obs": 300,
+    "n_int": 150,
+    "preflight_seed": 20260816,
+    "seed_map_from": "",
+    "meanshift_z": 1.96,
+    "meanshift_abstain": 1.0,
+    "eig_max_members": 256,
+    "budget_slack": -1,
+    "evidence_mode": "summary",
+    "e2e_max_steps": 12,
+    "temperature": 0.0,
+    "max_tokens": 3000,
+    "max_repairs": 2,
+    "workers": 4,
+    "resume": false,
+    "retry_failed": false,
+    "limit": 0
+  }
+}

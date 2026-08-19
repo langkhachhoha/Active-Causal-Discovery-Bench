@@ -1,0 +1,4 @@
+inferencer,model_tag,n,directed_f1,compelled_f1,skeleton_f1,dag_shd,orientation_accuracy,submit_directed,submit_undirected
+llm,gpt-4o-mini-2024-07-18,20,0.644 ±0.093,0.841 ±0.141,0.912 ±0.048,3.650 ±1.192,0.945 ±0.067,5.800 ±0.747,1.300 ±0.534
+llm,qwen3-coder-30b-a3b-instruct,20,0.682 ±0.076,0.899 ±0.109,0.967 ±0.023,2.450 ±0.559,0.945 ±0.067,6.400 ±0.744,0.400 ±0.412
+meek,none,20,0.912 ±0.076,0.938 ±0.067,0.981 ±0.015,0.750 ±0.618,0.945 ±0.067,6.850 ±0.518,0.000 ±0.000
