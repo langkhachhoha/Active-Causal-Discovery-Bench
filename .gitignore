@@ -173,3 +173,8 @@ paper/rauma_neurips2026.pdf
 *.code-workspace
 /reviews.md
 /paper/REVIEW_VI.md
+
+# result/: same policy as study1/ — keep the CSV/manifest logs the paper recomputes
+# from, drop the raw call traces and resume checkpoints.
+result/**/events.jsonl
+result/**/checkpoint.json

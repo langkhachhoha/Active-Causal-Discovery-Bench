@@ -4,13 +4,14 @@
 
 Panel (a) plots every local orientation decision the mean-shift rule made, as the
 two-sample |Z| for the neighbour under test, split by the ground-truth direction. The two
-classes do not overlap: the rule is not adjudicating a close call. Panel (b) sweeps the
-decision threshold and shows that the whole residual error of the rule is type-I error at
-the conventional 1.96 cut, and that abstaining in the low-|Z| band makes things worse.
+classes do not overlap: the rule is not adjudicating a close call. Panel (b) hands the same
+one-edge decision to an LLM under three prompt conditions and shows where the readout
+failure actually lives -- not in the causal rule, but in the numeric reduction that turns
+two means into a verdict.
 
-Inputs are produced by (both are model-free and cost nothing to rerun):
+Inputs are produced by:
     run_study1_localreadout.py --mode mechanical --selector {oracle,random,maxdeg,eig}
-    run_study1_decompose.py --meanshift-z ... [--meanshift-abstain ...]
+    run_study1_localreadout.py --mode llm --prompt {stats,rule,rule_z} --models ...
 """
 
 from __future__ import annotations
@@ -57,35 +58,42 @@ def load_decisions(study_dir: str) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
-def load_sweep(study_dir: str) -> pd.DataFrame:
+def load_ladder(result_dir: str) -> pd.DataFrame:
+    """Per-decision accuracy of each readout condition, on the matched first-round decisions.
+
+    A local decision changes the belief graph, so later rounds diverge between conditions.
+    Round 1 is the one point where every condition faces an identical state, which makes it
+    the honest comparison; the on-policy totals are reported in the paper's appendix.
+    """
     rows = []
-    for path in sorted(glob.glob(os.path.join(study_dir, "ablation_verifier", "*", "episodes.csv"))):
+    for path in sorted(glob.glob(os.path.join(result_dir, "localreadout", "*", "decisions.csv"))):
         name = os.path.basename(os.path.dirname(path))
-        df = pd.read_csv(path)
-        df = df[df.status == "success"]
-        correct, wrong = df.orientations_correct.sum(), df.orientations_wrong.sum()
-        rows.append({
-            "z": float(re.search(r"z([\d.]+)$", name).group(1)),
-            "abstain": name.startswith("abstain"),
-            "f1": df.directed_f1.mean(),
-            "err": wrong / max(correct + wrong, 1),
-        })
+        d = pd.read_csv(path)
+        d1 = d[d.step == 1]
+        if name.startswith("mechanical"):
+            model, prompt = "mechanical", "mechanical"
+        else:
+            model, _, prompt = name.partition("_")
+        rows.append({"config": name, "model": model, "prompt": prompt,
+                     "n": len(d1), "acc": d1.correct.mean(),
+                     "acc_all": d.correct.mean()})
     if not rows:
-        raise SystemExit("no threshold sweep; run run_study1_decompose.py --meanshift-z ...")
-    return pd.DataFrame(rows).sort_values("z")
+        raise SystemExit("no decision logs; run run_study1_localreadout.py")
+    return pd.DataFrame(rows)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--study-dir", default="study1")
+    ap.add_argument("--result-dir", default="result")
     ap.add_argument("--out-dir", default="figures")
     args = ap.parse_args()
 
     dec = load_decisions(args.study_dir)
-    sweep = load_sweep(args.study_dir)
+    lad = load_ladder(args.result_dir)
 
-    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(5.5, 2.0),
-                                   gridspec_kw={"width_ratios": [1.15, 1.0], "wspace": 0.42})
+    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(5.5, 2.1),
+                                   gridspec_kw={"width_ratios": [1.1, 1.0], "wspace": 0.34})
 
     # ---------------------------------------------------------------- panel a
     rng = np.random.default_rng(0)
@@ -110,36 +118,42 @@ def main() -> int:
     ax0.set_xlim(0.02, 90)
     ax0.set_ylim(-0.55, 1.95)
     ax0.set_yticks([])
-    ax0.set_xlabel(r"mean-shift statistic $|Z|$ at the neighbour (log scale)")
+    ax0.set_xlabel(r"mean-shift statistic $|Z|$ (log scale)")
     ax0.set_title("(a) the evidence is not a close call", loc="left")
     ax0.xaxis.grid(True)
     ax0.set_axisbelow(True)
-    for side in ("left",):
-        ax0.spines[side].set_visible(False)
+    ax0.spines["left"].set_visible(False)
 
     # ---------------------------------------------------------------- panel b
-    forced = sweep[~sweep.abstain]
-    absta = sweep[sweep.abstain]
-    ax0b = ax1.twinx()
-    ax1.plot(forced.z, forced.f1, color=ORANGE, marker="o", markersize=3.4,
-             label="forced orientation")
-    ax1.plot(absta.z, absta.f1, color=BLUE, marker="s", markersize=3.4, ls=(0, (3, 1.6)),
-             label="abstain when $1.0 \\leq |Z| <$ cut")
-    ax0b.plot(forced.z, 100 * forced.err, color=GREY, marker="^", markersize=3.0, lw=0.9,
-              ls=(0, (1, 1.4)))
-    ax0b.set_ylabel("orientation errors (%)", color=GREY)
-    ax0b.tick_params(axis="y", colors=GREY)
-    ax0b.spines["right"].set_visible(True)
-    ax0b.spines["right"].set_color(AXIS)
-    ax0b.set_ylim(0, 14)
-    ax1.axvline(1.96, color=RED, lw=0.9, ls=(0, (3, 2)))
-    ax1.set_xlabel(r"decision threshold on $|Z|$")
-    ax1.set_ylabel("directed-edge F1")
-    ax1.set_ylim(0.78, 0.89)
-    ax1.set_title("(b) 1.96 is not the right cut", loc="left")
+    conds = [("stats", "numbers\nonly"), ("rule", "+ causal\nrule"), ("rule_z", "+ computed\n$Z$")]
+    models = [("qwen3-coder-30b", "Qwen3-Coder-30B", BLUE), ("gpt-4o-mini", "GPT-4o-mini", "#7fb2ea")]
+    width = 0.36
+    for mi, (mkey, mlabel, colour) in enumerate(models):
+        ys = [float(lad[(lad.model == mkey) & (lad.prompt == c)].acc.iloc[0]) for c, _ in conds]
+        xs = np.arange(len(conds)) + (mi - 0.5) * width
+        ax1.bar(xs, ys, width * 0.92, color=colour, edgecolor="white", linewidth=0.4, label=mlabel)
+        for x, y in zip(xs, ys):
+            ax1.text(x, y + 0.018, f"{y:.0%}", ha="center", fontsize=6.0, color=DARK)
+    # every LLM ladder run used --selector oracle, so the like-for-like mechanical
+    # reference is that same arm, not the average over selectors.
+    ref = float(lad[lad.config == "mechanical"].acc.iloc[0])
+    ax1.axhline(ref, color=ORANGE, lw=1.0, ls=(0, (4, 2)))
+    ax1.text(1.0, ref + 0.015, f"mean-shift rule ({ref:.0%})", transform=ax1.get_yaxis_transform(),
+             ha="right", va="bottom", fontsize=6.2, color=ORANGE)
+    ax1.axhline(0.5, color=GREY, lw=0.8, ls=(0, (1, 1.6)))
+    ax1.text(0.995, 0.505, "chance", transform=ax1.get_yaxis_transform(), ha="right",
+             va="bottom", fontsize=6.0, color=GREY)
+    ax1.set_xlim(-0.55, 2.95)
+    ax1.set_xticks(range(len(conds)))
+    ax1.set_xticklabels([lbl for _, lbl in conds], fontsize=6.4)
+    ax1.set_ylim(0, 1.14)
+    ax1.set_yticks([0, 0.25, 0.5, 0.75, 1.0])
+    ax1.set_ylabel("one-edge decisions correct")
+    ax1.set_title("(b) what the LLM is actually missing", loc="left")
     ax1.yaxis.grid(True)
     ax1.set_axisbelow(True)
-    ax1.legend(loc="lower right", handlelength=1.3, labelspacing=0.25, fontsize=6.2)
+    ax1.legend(loc="upper left", handlelength=1.0, labelspacing=0.22, fontsize=6.0,
+               borderpad=0.2, bbox_to_anchor=(-0.02, 1.02))
 
     for ext in ("pdf", "png"):
         fig.savefig(os.path.join(args.out_dir, f"rauma_f6_verifier.{ext}"), dpi=300)
@@ -148,9 +162,7 @@ def main() -> int:
 
     print(f"decisions={len(dec)}  accuracy={dec.correct.mean():.4f}  errors={int((1 - dec.correct).sum())}")
     print(f"separating gap: [{lo:.2f}, {hi:.2f}]")
-    for z in (1.282, 1.645, 1.96, 2.576, 3.291):
-        pred = np.where(dec.z > z, "a_to_b", "b_to_a")
-        print(f"  z={z:<6} local accuracy={np.mean(pred == dec.truth):.4f}")
+    print(lad.sort_values(["model", "prompt"]).round(4).to_string(index=False))
     return 0
 
 

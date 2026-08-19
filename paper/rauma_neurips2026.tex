@@ -65,13 +65,15 @@ selectors moves directed-edge F1 by at most $0.025$. Granting an LLM terminal au
 restate the graph from the same evidence costs $0.32$ F1. An edge-level audit localizes the
 loss: both models reproduce observationally compelled arrows at the mechanical rule's own
 error rate ($\approx 9\%$) while reversing $55.8\%$ and $46.5\%$ of the arrows the
-experiments were run to decide, indistinguishable from coin flipping. This is not signal
-detection. Auditing all 439 orientation decisions shows the two evidence classes are
+experiments were run to decide, indistinguishable from coin flipping. A per-edge substitution locates the failure. The two evidence classes are
 perfectly separated --- true children shift by $14$--$50$ standard errors, non-children by
-under $2.7$ --- and the deciding rule was stated in the readout prompt. \rauma{} reaches
-$0.861$ F1 at roughly \$$0.0003$ per episode. In this benchmark, free-form belief revision
-is a far larger error source than experiment selection, even when the evidence is
-unambiguous.
+under $2.7$ --- yet handed one edge and the two means, both models decide at chance; stating
+the causal rule recovers a third of the gap, and supplying the pre-computed $z$ statistic
+almost all of it ($94\%$ of decisions correct against the rule's $96\%$). What the models
+cannot do is compare a mean difference to its sampling scale, not apply causal logic.
+\rauma{} reaches $0.861$ F1 at roughly \$$0.0003$ per episode. The lesson is not to keep
+models away from evidence, but that the reduction from data to a decision statistic has to be
+mechanical.
 \end{abstract}
 
 \section{Introduction}
@@ -114,12 +116,12 @@ two axes behave very differently. Selection barely matters: the LLM usually pick
 optimal for our information-gain surrogate, but so does a one-line max-degree rule, and the
 choice moves the score by at most $0.025$ F1. The readout choice is decisive, costing $0.32$
 F1, with an edge-level audit tracing the loss specifically to orientations that depend on
-experimental evidence. We then close off the natural excuse for that failure: auditing every
-orientation decision in the study shows true children of the intervened node shift by
-$14$--$50$ standard errors and non-children by less than $2.7$, with nothing in between, and
-the rule converting that gap into an arrow was stated verbatim in the readout prompt. The
-models still reverse about half of these edges, and their rationales show why --- they read a
-shift as evidence of a \emph{direct} edge rather than of descendance.
+experimental evidence. We then locate that failure precisely. The evidence turns out to be
+unambiguous --- true children of the intervened node shift by $14$--$50$ standard errors and
+non-children by less than $2.7$, with nothing in between --- yet when the task is reduced to a
+single edge and the two means, both models decide at chance. Stating the causal rule recovers
+about a third of the gap; supplying the pre-computed $z$ statistic recovers nearly all of it.
+The models can apply the causal rule; what they cannot do is judge whether a mean moved.
 
 \rauma{} is not proposed as a stronger acquisition function. On graphs this small, exact
 expected information gain runs in milliseconds and max-degree is already near-optimal, so an
@@ -134,8 +136,9 @@ more --- measuring the marginal effect of \emph{choosing} and of \emph{concludin
 rather than reporting one end-to-end score.
 \item \textbf{A localized diagnosis:} edge-level audits showing that small LLMs select
 near-optimal interventions and then reverse the arrows those interventions were run to
-resolve, at a chance-level rate, on statistically unambiguous evidence and under a prompt
-stating the correct rule.
+resolve, plus a per-edge substitution decomposing that loss into global reconstruction
+burden, missing causal rule, and --- the largest term --- an inability to compare a mean
+difference to its sampling scale.
 \item \textbf{An auditable architecture, and what it says about verifiers:} every \rauma{}
 arrow is traceable to a statistic or a rule, and the same trace shows the verifier's residual
 error is entirely type-I error at a conventional threshold, with the standard remedy of
@@ -345,9 +348,9 @@ on every instance, so all comparisons are paired; pairwise claims use two-sided 
 signed-rank tests with win--tie--loss (W-T-L) counts, because ties are frequent and a
 $p$-value alone hides them. Error bars are $95\%$ CIs, over instances for arm means and over
 paired differences for contrasts. The main study is $16 \times 40 = 640$ grid episodes plus
-$2 \times 40 = 80$ unscaffolded episodes; three ablations on budget, sample size and evidence
-format bring the total to $1{,}800$ LLM episodes, and a model-free verifier-calibration sweep
-adds no LLM cost.
+$2 \times 40 = 80$ unscaffolded episodes; ablations on budget, sample size and evidence format
+and the per-edge readout study of Section~\ref{sec:verifier} bring the total to $2{,}040$ LLM
+episodes, and a model-free verifier-calibration sweep adds no LLM cost.
 
 \section{Results}
 \label{sec:results}
@@ -380,7 +383,7 @@ tool calls and five schema-repair calls.
 (across blocks) costs roughly $0.32$ directed F1; changing the selector (within a block)
 changes it by at most $0.025$. Full 18-configuration grid: Appendix~\ref{app:grid}. Token
 counts are not comparable across blocks --- the unscaffolded agent receives raw rows, the
-others sufficient statistics; Section~\ref{sec:robust} isolates that factor.}
+others sufficient statistics; Appendix~\ref{app:robust} isolates that factor.}
 \label{tab:main}
 \centering
 \small
@@ -446,13 +449,12 @@ The specificity of this pattern is the point. The models do not fail at graph re
 general --- they reproduce the passive-data orientations and, for qwen3-30b, the skeleton and
 compelled-edge scores almost intact (Appendix~\ref{app:audit}). They fail at the one step that
 converts an experiment into an arrow, and they fail there while attending to the evidence:
-$80$--$100\%$ of their rationales explicitly discuss the interventions and $62$--$90\%$ mention
-the observed shifts. The rationales reveal a recurring confusion between an intervention's
-\emph{descendants} and its \emph{children}: ``variables whose means changed are descendants of
-$X_2$; this makes $X_2$ a parent of these variables.'' That is exactly the inference the
-mechanical rule is forbidden from making, because it applies the test only over the undecided
-neighborhood and lets \meek{} closure handle everything further away
-(Appendix~\ref{app:rationale}).
+$80$--$100\%$ of their rationales discuss the interventions and $62$--$90\%$ mention the
+observed shifts, often confusing an intervention's \emph{descendants} with its \emph{children}
+--- ``variables whose means changed are descendants of $X_2$; this makes $X_2$ a parent of
+these variables'' --- which is exactly the inference the mechanical rule is forbidden from
+making (Appendix~\ref{app:rationale}). Section~\ref{sec:verifier} shows this is a symptom of
+something narrower.
 
 \begin{figure}[t]
 \centering
@@ -465,76 +467,94 @@ orients the experiment-dependent ones at chance level.}
 \label{fig:readout}
 \end{figure}
 
-\subsection{The evidence was not the hard part}
+\subsection{Locating the failure inside the readout}
 \label{sec:verifier}
 
-A natural reading of Section~\ref{sec:diagnosis} is that interventional evidence is genuinely
-noisy and small models are bad at reading it. The trace says otherwise. Replaying the
-mechanical agent's decision points --- same instances, same targets, same neighborhoods,
-reproducing each arm's score exactly --- and logging the $|Z|$ statistic behind all 439 of its
-orientation decisions across four selectors gives Figure~\ref{fig:verifier}(a). The two classes
-are perfectly separated: where the edge truly runs out of the intervened node the neighbor's
-mean moves by $14.2$ to $49.9$ standard errors, and where it truly runs in, by at most $2.6$.
-Nothing in the study lands in between. Two conclusions follow, in opposite directions.
+Section~\ref{sec:diagnosis} says \emph{where} the readout loses accuracy but not \emph{why}.
+Two explanations are natural: interventional evidence is genuinely noisy and small models
+misjudge significance, or the models never had the causal rule to begin with. Neither
+survives contact with the trace.
 
-\paragraph{For the LLM readout, the excuse is unavailable.} The decision is not a marginal call
-between a weak effect and noise but a five-fold gap on a log scale, presented as two means and
-two standard deviations, with the deciding rule and the standard-error formula written into the
-readout prompt (Section~\ref{sec:design}). The models still reverse about half of these edges,
-so the failure is neither signal detection nor missing domain knowledge: it is applying a
-stated rule to unambiguous numbers while holding a graph in mind. That is narrower and more
-actionable than ``LLMs cannot interpret experiments'', and it matches the rationales, which
-misapply the rule in one direction (descendant $\Rightarrow$ child) rather than hedging about
-significance.
+\paragraph{The evidence is not a close call.} Replaying the mechanical agent's decision
+points --- same instances, same targets, same neighborhoods, reproducing each arm's score
+exactly --- and logging the $|Z|$ behind all 439 of its orientation decisions across four
+selectors gives Figure~\ref{fig:verifier}(a). The two classes are perfectly separated: where
+the edge truly runs out of the intervened node the neighbor's mean moves by $14.2$ to $49.9$
+standard errors, and where it truly runs in, by at most $2.6$. Nothing lands in between. The
+rule's own residual error is therefore not irreducible either --- all 16 of its mistakes are
+non-shifts whose noise crossed $1.96$, and raising the cut to $3.29$ makes it exact
+(Appendix~\ref{app:verifier}, which also shows that abstaining in the low-$|Z|$ band, the
+standard remedy for an imperfect verifier, makes things \emph{worse} because that band is
+where the rule is most reliable).
 
-\paragraph{For the mechanical rule, $1.96$ is the wrong number, and abstention is the wrong
-fix.} The same separation shows the rule's residual error is not irreducible but entirely
-type-I error at a conventional threshold: all 16 of its 439 local mistakes are non-shifts
-whose noise exceeded $1.96$, and every one falls in $[1.96, 3)$. Since power against the true
-alternative is effectively $1$ here, tightening the test costs no recall, and any cut in
-$[2.6, 14.2]$ would be exact on this instance set: sweeping the threshold raises local
-accuracy from $88.6\%$ at $z{=}1.28$ to $100\%$ at $3.29$ and directed F1 monotonically from
-$0.804$ to $0.867$ (Figure~\ref{fig:verifier}(b), Appendix~\ref{app:verifier}). The standard
-remedy for an imperfect verifier points the wrong way. Abstaining whenever $1.0 \leq |Z| <$
-threshold makes F1 \emph{fall} from $0.848$ to $0.824$ and the error rate on the remaining
-decisions \emph{rise} from $5.8\%$ to $7.7\%$, because the low-$|Z|$ band is not the
-verifier's uncertain region but its most confident one --- the true $b \to a$ cases live there
-and are all correct, and \meek{} closure propagates only from what is decided, so each
-withheld orientation also suppresses downstream ones. Where an imperfect verifier should
-abstain is a property of its error structure, not of the magnitude of its test statistic. We
-nonetheless keep $1.96$ everywhere, so the readout comparison is made against a rule fixed
-before the study rather than one tuned after it; \rauma{}'s reported $0.861$ understates what
-its own architecture supports.
+\paragraph{So we hand the model one edge at a time.} If the evidence is unambiguous, the
+failure lies in what the model does with it. We substitute an LLM for the mean-shift test at
+exactly the point where evidence becomes an arrow: for each undecided neighbor it receives one
+tuple --- the pair, the intervention, and $X_b$'s mean, standard deviation and sample size in
+each panel --- and answers $a \to b$, $b \to a$ or abstain, with everything else including
+\meek{} closure left mechanical. Three prompt conditions vary what it gets beyond the numbers:
+nothing (\textsc{numbers}), the intervention-to-orientation rule and the standard-error formula
+(\textsc{+rule}), and additionally the pre-computed $Z$ with the $1.96$ convention
+(\textsc{+$Z$}); Appendix~\ref{app:ladder} gives them verbatim.
+
+Figure~\ref{fig:verifier}(b) scores the 72 first-round decisions, where every condition faces an
+identical state. Given only the numbers, both models are at chance ($54\%$ and $49\%$) on a
+decision whose classes differ by an order of magnitude. The causal rule buys about $15$ points
+and leaves them far short. The computed $Z$ closes almost all of the rest: qwen3-30b reaches
+$94\%$ against the rule's $96\%$, a difference not significant end-to-end ($0.833$ versus
+$0.836$ F1, $p=0.32$). The binding constraint is therefore neither causal logic nor ambiguous
+evidence but the numeric reduction, which the models cannot perform reliably even when told
+exactly how.
+
+\paragraph{They are not reading the numbers at all.} The error structure confirms this. Each
+model has a fixed prior that the evidence barely moves: qwen3-30b answers $a \to b$ on
+$70$--$72\%$ of decisions in \emph{every} condition, close to the $70\%$ base rate, and gets
+only $12.5\%$ of the true $b \to a$ cases right. gpt-4o-mini does the opposite, answering
+$b \to a$ on $76\%$ of its numbers-only decisions and getting $94.7\%$ of true $b \to a$ but $33.3\%$ of true
+$a \to b$. One model assumes an intervention always propagates, the other that it never
+does. This is response bias, not misjudged significance, and it explains why the
+whole-graph readout reverses roughly half of the experiment-dependent arrows
+(Section~\ref{sec:diagnosis}) while faithfully reproducing the observational ones.
+
+\paragraph{The gap decomposes.} Running the same substitution end-to-end splits the readout
+deficit into three named parts (Appendix~\ref{app:ladder}). For qwen3-30b, of the $0.279$ F1
+between the free-form readout and the mechanical rule, decomposing the graph into one-edge
+decisions recovers $0.067$ ($24\%$, $p=0.031$), stating the causal rule a further $0.079$
+($28\%$, $p=0.019$), and supplying $Z$ a further $0.130$ ($47\%$, $p=1.7\times10^{-4}$),
+leaving $0.003$ unexplained. For gpt-4o-mini the same three terms are $0.133$, $0.041$ and
+$0.121$ of a $0.320$ gap. Global reconstruction burden is real but secondary; the largest
+single term is the arithmetic.
+
+This sharpens the architectural claim rather than softening it. The right boundary is not
+``keep the model away from the evidence'' but ``the reduction from data to a decision
+statistic must be mechanical''. Once that statistic exists, an LLM applies the causal rule
+to it about as well as the rule itself --- which is also why delegating that last step is
+pointless: it costs an API call and, for gpt-4o-mini, $0.025$ F1 ($p=0.018$).
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{rauma_f6_verifier.pdf}
-\caption{The orientation evidence is unambiguous, and the verifier's own errors are all
-type-I. (a) The $|Z|$ statistic behind all 439 local orientation decisions, split by the true
-direction; the classes do not overlap and nothing lands in the shaded gap. (b) Sweeping the
-decision threshold: forcing an orientation improves monotonically as the test is tightened,
-whereas abstaining in the low-$|Z|$ band --- which is the rule's \emph{most} reliable region
---- costs accuracy. Both panels are model-free.}
+\caption{Where the readout actually breaks. (a) The $|Z|$ behind all 439 local orientation
+decisions of the mean-shift rule, split by the true direction; the classes do not overlap and
+nothing lands in the shaded gap. (b) The same one-edge decision handed to an LLM, scored on
+the 72 first-round decisions every condition sees identically. Numbers alone leave both models
+at chance; stating the causal rule is not enough; supplying the computed $Z$ nearly closes the
+gap to the rule.}
 \label{fig:verifier}
 \end{figure}
 
-\subsection{The gap is not an artifact of evidence format or sample size}
-\label{sec:robust}
-
-Two explanations remain: the LLM may fail because it sees summary statistics rather than raw
-data, or the rule may benefit from a sample size that flatters its $z$-test. Two ablations at
-$d\in\{6,8\}$ on a fresh instance draw test both (Appendix~\ref{app:robust}). Serving the
-readout raw interventional rows grows its prompt $15$--$20\times$, from $0.8$--$1.4$k to
-$14$--$23$k tokens, and does not help: qwen3-30b is unmoved ($0.640 \to 0.632$), submitting the
-same $6.20$ arrows per episode at the same $27.4\%$ reversal rate, while gpt-4o-mini gets
-\emph{worse} ($0.603 \to 0.498$) by inventing adjacencies --- arrows per episode rise from
-$5.60$ to $9.10$ and non-adjacent arrows from $9.8\%$ to $34.6\%$. Better data, by contrast,
-help the rule far more than the readout: over $n_{\mathrm{obs}} \in \{60, 300, 1000\}$ the
-mechanical readout moves from $0.73$ to $0.91$ F1, tracking the evidence, while the LLM readout
-climbs only from $0.52$ to $0.67$, leaving a paired gap of $0.22$--$0.24$ for qwen3-30b ($p \le
-6\times10^{-4}$ throughout) and $0.26$--$0.33$ for gpt-4o-mini. Seventeen times more data does
-not close it, exactly as Section~\ref{sec:verifier} predicts: the quality of the statistic was
-never the binding constraint.
+\paragraph{Two remaining explanations do not survive either.} The readout might fail because it
+sees summary statistics rather than raw data, or the rule might be flattered by the sample size.
+Neither holds (Appendix~\ref{app:robust}). Serving the readout the raw interventional rows on the
+\emph{same} instances grows its prompt from $0.8$--$1.4$k to $18$--$26$k tokens and costs
+$0.043$ F1 for qwen3-30b ($p=0.050$) while leaving gpt-4o-mini flat ($p=0.95$); what the extra
+context buys is spurious structure, with non-adjacent arrows rising from $3.3\%$ to $10.2\%$ and
+from $9.8\%$ to $25.2\%$ respectively, and reversal rates on experiment-dependent arrows barely
+moving. Sweeping $n_{\mathrm{obs}} \in \{60, 300, 1000\}$ moves the mechanical readout from
+$0.73$ to $0.91$ F1 but the LLM readout only from $0.52$ to $0.67$, leaving a paired gap of
+$0.22$--$0.24$ for qwen3-30b ($p \le 6\times10^{-4}$ throughout) and $0.26$--$0.33$ for
+gpt-4o-mini. Seventeen times more data does not close it, which is what the diagnosis above
+predicts: the quality of the statistic was never the binding constraint.
 
 \subsection{Selection: near-optimal choices, a small and regime-dependent payoff}
 \label{sec:selection}
@@ -599,27 +619,31 @@ model picks a target optimal for our structural MEC-EIG surrogate in $93\%$ of i
 without a likelihood, prior or enumerated class --- although max-degree reaches $96\%$ and the
 whole axis moves the score by at most $0.025$. Interpretation is where the system breaks: on
 identical evidence both models reverse roughly half of the experiment-critical arrows, and
-neither raw data nor seventeen times more of it helps. The mechanism is sharper than a
-capability gap, because the evidence is perfectly separable and the deciding rule was in the
-prompt; the models still misapply it, in the direction their rationales describe. \rauma{}
-takes the corresponding design decision --- the LLM proposes, a fixed test and \meek{} closure
-dispose --- reaching $0.861$ F1 for three hundredths of a cent per episode with every arrow
-traceable to a statistic or a rule.
+neither raw data nor seventeen times more of it helps. The mechanism is sharper than a capability gap: reducing the task to a
+single edge and supplying the pre-computed $z$ lifts a 30B model from chance to $94\%$ of
+decisions correct against the rule's $96\%$, so the models can apply the causal rule but cannot
+decide whether a mean moved, each falling back on a fixed prior the evidence barely disturbs.
+\rauma{} takes the corresponding design decision --- the LLM proposes, a fixed test and \meek{}
+closure dispose --- reaching $0.861$ F1 for three hundredths of a cent per episode with every
+arrow traceable to a statistic or a rule.
 
 In these small, anonymized instances the dominant measurable failure is thus not choosing what
-to try but reconstructing the graph from what happened. More broadly, the boundary of model
-authority mattered more than the choice between comparably small models: changing the model
-moves F1 by $0.005$, whereas changing which component may state the causal conclusion moves it
-by $0.32$. The same trace shows a verifier is worth auditing on its own terms --- its residual
-error was a badly placed threshold, not genuine ambiguity, and the reflex of abstaining under
-uncertainty made it worse.
+to try but converting what happened into a graph. More broadly, the boundary of model authority
+mattered more than the choice between comparably small models: changing the model moves F1 by
+$0.005$, whereas changing which component may state the causal conclusion moves it by $0.32$.
+Where to draw that boundary is the practical question, and our decomposition answers it more
+narrowly than ``keep the model out'': the reduction from data to a decision statistic must be
+mechanical, and once it is, little is left to get wrong. The same trace shows a verifier is
+worth auditing on its own terms --- its residual error was a badly placed threshold, not
+genuine ambiguity, and abstaining under uncertainty made it worse.
 
 \section*{Reproducibility statement}
 
-All LLM results come from 1{,}800 episodes: 720 main (640 grid $+$ 80 unscaffolded), 240
-tight-budget, 720 sample-size and 120 evidence-format; the verifier sweep of
-Section~\ref{sec:verifier} adds eight model-free runs of 160 episodes that cost nothing to
-reproduce. The release includes per-episode CSV logs, per-round step logs, per-decision orientation logs,
+All LLM results come from 2{,}040 episodes: 720 main (640 grid $+$ 80 unscaffolded), 240
+tight-budget, 720 sample-size, 120 evidence-format and 240 per-edge readout; the verifier sweep
+and the decision replay of Section~\ref{sec:verifier} add model-free runs that cost nothing to
+reproduce. The release includes per-episode CSV logs, per-round step logs, per-decision orientation logs
+with the $|Z|$ behind each one,
 the full LLM call trace, a run manifest recording the seed map, and the fixed
 instance-acceptance preflight. Every arm within a run shares that seed map, so all comparisons
 are paired unless stated otherwise; the sample-size and evidence-format runs use a separate
@@ -628,7 +652,7 @@ arms are deterministic --- two independent runs of 160 model-free episodes repro
 scores. Both LLMs run at temperature zero with forced tool calls, and every prompt is a fixed
 string reproduced in Appendix~\ref{app:prompts}. Code, logs, figure and audit scripts, the
 exact command for every arm, and a script that recomputes every number in this paper are
-included; the complete LLM study reruns for \$$2.39$.
+included; the complete LLM study reruns for \$$2.56$.
 
 \appendix
 
@@ -649,9 +673,11 @@ Four implications follow. First, evaluations of LLM experiment-design policies s
 choice quality against a reference objective rather than final accuracy, because
 Figure~\ref{fig:selection} shows the two can be dissociated by budget slack alone. Second,
 giving an agent more raw data is not a substitute for giving it a correct update rule:
-Section~\ref{sec:robust} increases the readout's context by an order of magnitude with no
+Appendix~\ref{app:robust} increases the readout's context by an order of magnitude with no
 benefit, and Section~\ref{sec:verifier} explains why --- the statistic was never the binding
-constraint. Third, the boundary of authority matters more than the choice of model within a
+constraint. What the model needs is the opposite of more data, namely fewer numbers arranged
+so that the remaining decision is categorical: the same model that is at chance on two means
+is at $94\%$ on the single statistic computed from them. Third, the boundary of authority matters more than the choice of model within a
 tier: swapping the 30B model for gpt-4o-mini changes \rauma{} by $0.005$ F1, whereas moving
 the authority to state the conclusion across that boundary changes it by $0.32$. Fourth,
 imperfect verifiers should be audited on their error structure rather than patched with
@@ -669,14 +695,18 @@ next step would be a single frontier readout on the same 40 logged evidence hist
 would separate ``small models cannot do this'' from ``the authority boundary is needed
 regardless of model''.
 
-\textbf{The readout comparison still bundles two operations.} The mechanical readout decides
-one edge at a time, immediately after each experiment; the LLM readout is handed the full
-history at the end and must reconstruct the whole graph in one call. Our claim is therefore
-about \emph{free-form terminal graph reconstruction} rather than about local evidence
-interpretation in isolation. Section~\ref{sec:verifier} constrains but does not eliminate the
-alternative: it shows the underlying evidence is unambiguous and the rule was supplied, so
-whatever the model is failing at, it is not signal detection. A per-edge readout ablation,
-which the released code supports, would close this gap directly.
+\textbf{The \textsc{+$Z$} condition is an upper bound by construction.} It hands the model the
+statistic the mechanical rule computes and the threshold it applies, leaving only a comparison,
+so its $94\%$ is not evidence that an LLM can perform evidence interpretation --- it is
+evidence about where the deficit is \emph{not}. The interesting quantity is the $40$-point gap
+between \textsc{+rule} and \textsc{+$Z$}, and that gap is measured on one statistic (a
+two-sample $z$) in one evidence regime; whether the same ordering holds for statistics the
+model cannot shortcut with a heuristic is untested.
+
+\textbf{The per-edge conditions diverge after round 1.} A local decision changes the belief
+graph, so only the first round is state-matched across conditions. We report both the matched
+and the on-policy numbers (Appendix~\ref{app:ladder}) and they agree to within a few points,
+but the on-policy comparison is between policies, not between fixed inputs.
 
 \textbf{The mechanical rule is not an oracle, and the truth-gain arm is not a ceiling.} The
 mean-shift rule misorients $5.5\%$ of the edges it decides, so the readout gaps are measured
@@ -977,32 +1007,32 @@ LLM gpt-4o-mini & $219$ & $65.3\%$ & $22.4\%$ & $12.3\%$ & $9/106 = 8.5\%$ & $\m
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:audit_raw} repeats the audit for the evidence-format ablation. Because that
-ablation runs only at $d \in \{6,8\}$, the summary rows are the corresponding main-study cells
-\emph{restricted to the same two levels}, and both total arrows and arrows per episode are
-reported, so the two blocks are comparable in scale. Read this way, the two models fail
-differently. qwen3-30b is essentially unaffected: the same $6.20$ arrows per episode and the
-same $27.4\%$ reversal rate, with a small rise in spurious edges. gpt-4o-mini becomes
-\emph{denser and wronger}: $62\%$ more arrows per episode, and a third of them connecting
-pairs that are not adjacent in the true graph. Neither approaches the mechanical readout. The
-two runs remain separate instance draws, so this contrast is between conditions rather than
-within instances.
+Table~\ref{tab:audit_raw} repeats the audit for the evidence-format ablation. That ablation
+runs at $d \in \{6,8\}$ on the \emph{same} instances as the main study
+(\texttt{-\/-seed-map-from}), so both blocks are matched instance by instance and both total
+arrows and arrows per episode are comparable. Raw rows change what the models invent, not what
+they orient. The share of arrows joining non-adjacent pairs triples for qwen3-30b and more than
+doubles for gpt-4o-mini, which also inflates from $5.60$ to $8.40$ arrows per episode, while
+the reversal rate on the experiment-dependent arrows --- the quantity the extra data was
+supposed to improve --- moves by less than five points in both. An earlier, unpaired version of
+this ablation on a separate instance draw suggested a much larger degradation for gpt-4o-mini
+($-0.105$ F1) and none for qwen3-30b; the paired run reverses that ordering, which is why we
+report only the paired contrast.
 
 \begin{table}[h]
-\caption{Edge audit for the evidence-format ablation, selection pinned to the truth-gain
-reference, $d \in \{6,8\}$, 20 instances per block. The ``summary'' rows are the main-study
-cells restricted to the same two levels; the two runs are separate instance draws.}
+\caption{Edge audit for the evidence-format ablation, pooled over the three selectors the
+ablation runs, $d \in \{6,8\}$, the same 20 instances in every block.}
 \label{tab:audit_raw}
 \centering
 \small
 \begin{tabular}{llccccc}
 \toprule
-Evidence & Model & arrows & per episode & correct & reversed & spurious \\
+Model & Evidence & arrows & per episode & correct & spurious & exp.\ reversed \\
 \midrule
-summary & qwen3-30b & $124$ & $6.20$ & $69.4\%$ & $27.4\%$ & $3.2\%$ \\
-raw rows & qwen3-30b & $124$ & $6.20$ & $66.9\%$ & $27.4\%$ & $5.6\%$ \\
-summary & gpt-4o-mini & $112$ & $5.60$ & $70.5\%$ & $19.6\%$ & $9.8\%$ \\
-raw rows & gpt-4o-mini & $182$ & $9.10$ & $41.8\%$ & $23.6\%$ & $\mathbf{34.6\%}$ \\
+qwen3-30b & summary & $362$ & $6.03$ & $70.4\%$ & $3.3\%$ & $74/137 = 54.0\%$ \\
+qwen3-30b & raw rows & $364$ & $6.07$ & $65.1\%$ & $\mathbf{10.2\%}$ & $67/114 = 58.8\%$ \\
+gpt-4o-mini & summary & $336$ & $5.60$ & $70.2\%$ & $9.8\%$ & $53/114 = 46.5\%$ \\
+gpt-4o-mini & raw rows & $504$ & $8.40$ & $52.8\%$ & $\mathbf{25.2\%}$ & $76/150 = 50.7\%$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1123,6 +1153,106 @@ re-tuning the reference after seeing that it beats the LLM readout would weaken 
 comparison the paper is about. The honest statement is that the reference \rauma{} is
 measured against is conservative by roughly $0.02$ F1.
 
+\section{The per-edge readout ladder}
+\label{app:ladder}
+
+Section~\ref{sec:verifier} substitutes an LLM for the mean-shift test at the single point
+where evidence becomes an arrow. The harness replays the mechanical agent on the main study's
+seed map with the truth-gain selector: identical instances, identical targets, identical
+undecided neighborhoods, \meek{} closure unchanged. In \texttt{-\/-mode mechanical} it
+reproduces the corresponding main-study arm exactly, instance by instance, which is what makes
+it a substitution rather than a re-implementation. For each undecided neighbor $b$ of the
+target $a$ the model receives one JSON object --- the pair, the intervention value, and $X_b$'s
+mean, standard deviation and sample size in the observational and interventional panels --- and
+calls a tool returning \texttt{a\_to\_b}, \texttt{b\_to\_a} or \texttt{abstain}. The three
+conditions differ only in the system prompt:
+
+\begin{itemize}
+\item \textsc{numbers}: the setting (hard intervention on $X_a$, $X_a$ and $X_b$ known
+adjacent, direction unknown) and nothing else. The model must supply the causal rule itself.
+\item \textsc{+rule}: additionally ``$X_b$'s mean moves under $\mathrm{do}(X_a)$ if and only if
+$X_a \to X_b$; if it did not move, the edge runs the other way'', plus the standard-error
+formula $\sqrt{s^2_{\mathrm{obs}}/n_{\mathrm{obs}} + s^2_{\mathrm{int}}/n_{\mathrm{int}}}$.
+\item \textsc{+$Z$}: additionally the pre-computed $|Z|$ and the convention that a shift is
+called real when $Z > 1.96$. Only the comparison and the mapping to a direction remain.
+\end{itemize}
+
+A local decision changes the belief graph, so after round 1 the conditions visit different
+states. Table~\ref{tab:ladder_dec} therefore reports both the matched first-round decisions,
+where every condition faces an identical state, and the on-policy totals; they agree to within
+a few points. \textsc{+$Z$} is by construction an upper bound on what this interface can give
+the model --- it is the mechanical rule with the final comparison delegated --- and its value
+is diagnostic: it shows the residual task is one the models can do, so the deficit in the other
+two conditions is not a failure of causal reasoning.
+
+\begin{table}[h]
+\caption{One-edge decision accuracy. ``Matched'' is the 72 first-round decisions every
+condition sees identically; ``on-policy'' is every decision the condition actually made. The
+last two columns split the on-policy decisions by the true direction and expose the response
+bias: qwen3-30b answers $a \to b$ almost regardless of the evidence, gpt-4o-mini does the
+opposite.}
+\label{tab:ladder_dec}
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{llcccccc}
+\toprule
+Readout & Condition & matched & on-policy & $n$ & says $a\to b$ & acc.\ if $a\to b$ & acc.\ if $b\to a$ \\
+\midrule
+mean-shift rule & --- & $95.8\%$ & $\mathbf{97.0\%}$ & $99$ & $72.7\%$ & $100.0\%$ & $90.0\%$ \\
+\midrule
+LLM qwen3-30b & \textsc{numbers} & $54.2\%$ & $47.6\%$ & $105$ & $70.5\%$ & $63.0\%$ & $12.5\%$ \\
+LLM qwen3-30b & \textsc{+rule} & $70.8\%$ & $66.7\%$ & $105$ & $72.4\%$ & $78.1\%$ & $40.6\%$ \\
+LLM qwen3-30b & \textsc{+$Z$} & $94.4\%$ & $\mathbf{96.0\%}$ & $100$ & $72.0\%$ & $98.6\%$ & $90.0\%$ \\
+\midrule
+LLM gpt-4o-mini & \textsc{numbers} & $48.6\%$ & $53.5\%$ & $116$ & $24.1\%$ & $33.3\%$ & $94.7\%$ \\
+LLM gpt-4o-mini & \textsc{+rule} & $62.5\%$ & $61.8\%$ & $110$ & $39.1\%$ & $50.7\%$ & $85.7\%$ \\
+LLM gpt-4o-mini & \textsc{+$Z$} & $86.1\%$ & $\mathbf{85.6\%}$ & $104$ & $65.4\%$ & $89.0\%$ & $77.4\%$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Abstention was available in every condition and was almost never used: $0\%$ everywhere except
+gpt-4o-mini under \textsc{+$Z$} ($3.8\%$). The models are not hedging; they are answering
+confidently and wrongly.
+
+Table~\ref{tab:ladder_f1} carries the same conditions through to the submitted graph, which
+decomposes the readout deficit of Section~\ref{sec:main}. Every step is a paired contrast over
+the same 40 instances against the row above it. Reading down the qwen3-30b column, breaking the
+graph into one-edge decisions is worth $0.067$, stating the rule a further $0.079$, and
+supplying $Z$ a further $0.130$, after which $0.003$ separates the model from the rule it is
+imitating. Note that the first step costs the model information --- it no longer sees the whole
+history --- and still helps, which is the cleanest evidence that global reconstruction was part
+of the burden.
+
+\begin{table}[h]
+\caption{The same ladder in directed-edge F1, 40 paired instances, selection pinned to the
+truth-gain reference. $\Delta$ and $p$ compare each row to the row above (Wilcoxon
+signed-rank). The top row is the LLM-readout arm of Table~\ref{tab:main}; the bottom row is
+\rauma{}'s readout on the same selection.}
+\label{tab:ladder_f1}
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lcccccc}
+\toprule
+& \multicolumn{3}{c}{qwen3-coder-30b} & \multicolumn{3}{c}{gpt-4o-mini} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+Readout & F1 & $\Delta$ & $p$ & F1 & $\Delta$ & $p$ \\
+\midrule
+free-form whole-graph & $0.557$ & --- & --- & $0.516$ & --- & --- \\
+one edge at a time (\textsc{numbers}) & $0.624$ & $+0.067$ & $0.031$ & $0.649$ & $+0.133$ & $0.006$ \\
+\quad $+$ causal rule (\textsc{+rule}) & $0.703$ & $+0.079$ & $0.019$ & $0.690$ & $+0.041$ & $0.15$ \\
+\quad $+$ computed $Z$ (\textsc{+$Z$}) & $0.833$ & $+0.130$ & $1.7{\times}10^{-4}$ & $0.811$ & $+0.121$ & $1.2{\times}10^{-3}$ \\
+\midrule
+mean-shift $+$ \meek{} & $\mathbf{0.836}$ & $+0.003$ & $0.32$ & $\mathbf{0.836}$ & $+0.025$ & $0.018$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The 240 episodes of this study cost \$$0.114$ in total, about \$$0.0005$ per episode: the
+per-edge interface is cheap because each call carries six numbers rather than a whole history.
+
 \section{Robustness ablations}
 \label{app:robust}
 
@@ -1213,28 +1343,33 @@ mechanical readout on the same ladder levels.}
 
 \paragraph{Evidence format.}
 Table~\ref{tab:raw} replaces the per-experiment sufficient statistics in the readout prompt
-with the raw interventional rows. qwen3-30b is unchanged; gpt-4o-mini loses about $0.11$ F1,
-and Table~\ref{tab:audit_raw} attributes that loss to invented adjacencies rather than to
-misread shifts.
+with the raw interventional rows, on the main study's own instances. Neither model benefits;
+qwen3-30b loses $0.043$ F1 at the significance boundary and gpt-4o-mini is flat, and
+Table~\ref{tab:audit_raw} shows the extra context is spent on invented adjacencies rather than
+on the orientations it was meant to inform.
 
 \begin{table}[h]
 \caption{Sufficient statistics versus raw interventional rows for the LLM readout, $d \in
-\{6,8\}$, 20 instances per cell. Summary columns are the main study restricted to the same two
-levels; the two runs are separate instance draws, so the contrast is unpaired
-(Mann--Whitney). The mechanical readout on the corresponding main instances scores $0.864$.}
+\{6,8\}$, 20 instances per cell. The raw-rows run borrows the main study's seed map, so every
+contrast is paired (Wilcoxon signed-rank, W-T-L in the last column). The mechanical readout on
+the same instances scores $0.864$.}
 \label{tab:raw}
 \centering
 \small
-\begin{tabular}{llcccc}
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{llccccc}
 \toprule
-Selector & Model & summary F1 (tokens) & raw F1 (tokens) & $\Delta$ & $p$ \\
+Selector & Model & summary F1 (tokens) & raw F1 (tokens) & $\Delta$ & $p$ & W-T-L \\
 \midrule
-truth-gain ref. & qwen3-30b & $0.640$ ($1.3$k) & $0.632$ ($22.5$k) & $-0.008$ & $0.97$ \\
-MEC-EIG & qwen3-30b & $0.643$ ($1.4$k) & $0.632$ ($22.9$k) & $-0.011$ & $0.82$ \\
-LLM & qwen3-30b & $0.633$ ($2.9$k) & $0.635$ ($23.6$k) & $+0.003$ & $0.91$ \\
-truth-gain ref. & gpt-4o-mini & $0.603$ ($0.8$k) & $0.498$ ($14.5$k) & $-0.105$ & $0.05$ \\
-MEC-EIG & gpt-4o-mini & $0.592$ ($0.8$k) & $0.474$ ($15.4$k) & $-0.118$ & $0.05$ \\
-LLM & gpt-4o-mini & $0.610$ ($1.8$k) & $0.507$ ($16.5$k) & $-0.103$ & $0.13$ \\
+truth-gain ref. & qwen3-30b & $0.640$ ($1.3$k) & $0.581$ ($25.8$k) & $-0.058$ & $0.20$ & $7$-$7$-$6$ \\
+MEC-EIG & qwen3-30b & $0.643$ ($1.4$k) & $0.592$ ($25.8$k) & $-0.050$ & $0.16$ & $9$-$6$-$5$ \\
+LLM & qwen3-30b & $0.633$ ($2.9$k) & $0.612$ ($25.8$k) & $-0.021$ & $0.55$ & $7$-$6$-$7$ \\
+\emph{pooled} & qwen3-30b & $0.638$ & $0.595$ & $\mathbf{-0.043}$ & $\mathbf{0.050}$ & $23$-$19$-$18$ \\
+\midrule
+truth-gain ref. & gpt-4o-mini & $0.603$ ($0.8$k) & $0.627$ ($17.9$k) & $+0.023$ & $0.35$ & $5$-$7$-$8$ \\
+MEC-EIG & gpt-4o-mini & $0.592$ ($0.8$k) & $0.574$ ($17.9$k) & $-0.019$ & $0.66$ & $7$-$6$-$7$ \\
+LLM & gpt-4o-mini & $0.610$ ($1.8$k) & $0.586$ ($17.9$k) & $-0.024$ & $0.48$ & $8$-$8$-$4$ \\
+\emph{pooled} & gpt-4o-mini & $0.602$ & $0.595$ & $-0.006$ & $0.95$ & $20$-$21$-$19$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1357,9 +1492,9 @@ no scaffold & qwen3-30b & $51{,}556$ & $477$ & $3.78$ & $0.00749$ & $0.152$ \\
 
 Reliability was not a confound: across all 720 main episodes there were zero failed tool calls
 and five schema-repair calls, and the sanitizer dropped $0.005$ cyclic and $0.31$ overlapping
-edges per LLM-produced graph. The main study cost \$$0.64$ and $4.15$M tokens; all $1{,}800$
-LLM episodes together cost \$$2.39$ and $12.7$M tokens. The verifier sweep of
-Appendix~\ref{app:verifier} is model-free and free.
+edges per LLM-produced graph. The main study cost \$$0.64$ and $4.15$M tokens; all $2{,}040$ LLM episodes together cost
+\$$2.56$. The verifier sweep of Appendix~\ref{app:verifier} and the decision replay behind
+Figure~\ref{fig:verifier}(a) are model-free and free.
 
 \begin{figure}[h]
 \centering
