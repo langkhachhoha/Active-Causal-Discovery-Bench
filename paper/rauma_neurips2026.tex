@@ -49,58 +49,52 @@
 \maketitle
 
 \begin{abstract}
-Reliable scientific agents must both choose informative experiments and convert their
-outcomes into valid updates of a scientific claim. End-to-end large language model (LLM)
-agents entangle these roles and let unconstrained model output modify the scientific state
-directly, so a final score cannot say which role failed. We separate them in active causal
-discovery, where an agent spends a small intervention budget to orient an unknown causal
-graph. We introduce \rauma{}, which restricts the LLM to proposing intervention targets
-while a fixed mean-shift rule and \meek{} closure alone revise the graph: the model never
-writes an edge. We evaluate 16 matched selector--readout configurations over 640 episodes
-plus two unscaffolded baselines over 80 more, with robustness studies totalling 1{,}800
-episodes. Selection is the easy half: on these small anonymized linear--Gaussian graphs
-\texttt{qwen3-coder-30b} picks a target that is optimal for our structural MEC-EIG surrogate
-in $93\%$ of its on-policy rounds, but a max-degree heuristic reaches $96\%$, and swapping
-selectors moves directed-edge F1 by at most $0.025$. Granting an LLM terminal authority to
-restate the graph from the same evidence costs $0.32$ F1. An edge-level audit localizes the
-loss: both models reproduce observationally compelled arrows at the mechanical rule's own
-error rate ($\approx 9\%$) while reversing $55.8\%$ and $46.5\%$ of the arrows the
-experiments were run to decide, indistinguishable from coin flipping. A per-edge substitution locates the failure. The two evidence classes are
-perfectly separated --- true children shift by $14$--$50$ standard errors, non-children by
-under $2.7$ --- yet handed one edge and the two means, both models decide at chance; stating
-the causal rule recovers a third of the gap, and supplying the pre-computed $z$ statistic
-almost all of it ($94\%$ of decisions correct against the rule's $96\%$). What the models
-cannot do is compare a mean difference to its sampling scale, not apply causal logic.
-\rauma{} reaches $0.861$ F1 at roughly \$$0.0003$ per episode. The lesson is not to keep
-models away from evidence, but that the reduction from data to a decision statistic has to be
-mechanical.
+Reliable scientific agents must both choose informative experiments and convert their outcomes
+into valid scientific updates. End-to-end large language model (LLM) agents entangle these roles
+and let unconstrained model output modify the scientific state directly, so a final score cannot
+say which role failed. We separate them in active causal discovery, where an agent spends a small
+intervention budget to orient an unknown causal graph. \rauma{} restricts the LLM to proposing
+intervention targets while a fixed mean-shift rule and \meek{} closure alone revise the graph:
+the model never writes an edge. Across 16 matched selector--readout configurations and 2{,}040
+episodes, selection is the easy half --- \texttt{qwen3-coder-30b} picks a target optimal for our
+structural MEC-EIG surrogate in $93\%$ of its rounds, but a max-degree heuristic reaches $96\%$
+and swapping selectors moves directed-edge F1 by at most $0.025$. Granting an LLM terminal
+authority to restate the graph from the same evidence costs $0.32$ F1: both models reproduce
+observationally compelled arrows at the rule's own error rate, while reversing $55.8\%$ and
+$46.5\%$ of the arrows the experiments were run to decide. A per-edge substitution locates the
+failure. The two evidence classes are perfectly separated --- true children shift by $14$--$50$
+standard errors, non-children by under $2.7$ --- yet handed one edge and the two means both
+models decide at chance; stating the causal rule recovers a third of the gap, and supplying the
+pre-computed $z$ statistic almost all of it ($94\%$ correct against the rule's $96\%$). What the
+models cannot do is compare a mean difference to its sampling scale, not apply causal logic. The
+lesson is not to keep models away from evidence, but that the reduction from data to a decision
+statistic has to be mechanical.
 \end{abstract}
 
 \section{Introduction}
 \label{sec:intro}
 
 An autonomous scientific agent must close the experimental loop: identify what remains
-uncertain, choose an informative experiment, and update its conclusions from the outcome.
-Recent LLM systems automate increasingly large portions of that loop, but end-to-end success
-conceals a distinction that matters for both science and system design. \emph{Choosing} an
-experiment and \emph{interpreting} its result are different competencies with different
-failure modes, and when an agent returns a wrong model a final score cannot say whether the
-experiment was uninformative, the signal was missed, or valid evidence was turned into an
-invalid conclusion. Adding more raw data or more tools may not resolve this if the same
-generative model remains responsible for deciding what the evidence means.
+uncertain, choose an informative experiment, and update its conclusions from the outcome. Recent
+LLM systems automate increasingly large parts of that loop, but end-to-end success conceals a
+distinction that matters for both science and system design. \emph{Choosing} an experiment and
+\emph{interpreting} its result are different competencies with different failure modes, and when
+an agent returns a wrong model a final score cannot say whether the experiment was
+uninformative, the signal was missed, or valid evidence was turned into an invalid conclusion.
+More raw data or more tools may not resolve this if the same generative model still decides what
+the evidence means.
 
-\emph{Active causal discovery} is a controlled testbed for exactly that question.
-Observational data identify a graph only up to its Markov equivalence class; interventions
-resolve the directions observation cannot. The task exposes two modules cleanly: a
-\emph{selector} chooses where to intervene under a budget, and a \emph{readout} converts the
-resulting distributional changes into graph updates, so holding one fixed while varying the
-other reveals which competency determines the answer. Existing active-discovery policies
-choose interventions by coverage, targeted recovery, neural acquisition, Bayesian information
-gain or adaptivity, and LLMs have separately served as semantic causal experts, graph-search
-engines, structural priors and intervention selectors --- but both literatures report a final
-graph or task score, often where variable names leak world knowledge. We anonymize the
-variables to remove that shortcut and ask: \emph{where in the discovery loop is an LLM
-actually useful?}
+\emph{Active causal discovery} is a controlled testbed for that question. Observational data
+identify a graph only up to its Markov equivalence class; interventions resolve the directions
+observation cannot. The task exposes two modules cleanly: a \emph{selector} chooses where to
+intervene under a budget, and a \emph{readout} converts the resulting distributional changes into
+graph updates, so holding one fixed while varying the other reveals which competency determines
+the answer. Existing active-discovery policies choose interventions by coverage, targeted
+recovery, neural acquisition, Bayesian information gain or adaptivity, and LLMs have separately
+served as semantic causal experts, graph-search engines, structural priors and intervention
+selectors --- but both literatures report a final graph or task score, often where variable names
+leak world knowledge. We anonymize the variables and ask: \emph{where in the discovery loop is an
+LLM actually useful?}
 
 We introduce \rauma{}, a modular agent built on the principle \emph{the LLM proposes, \meek{}
 disposes} (the name is not an acronym). From a partially directed graph estimated by PC it
@@ -123,27 +117,11 @@ single edge and the two means, both models decide at chance. Stating the causal 
 about a third of the gap; supplying the pre-computed $z$ statistic recovers nearly all of it.
 The models can apply the causal rule; what they cannot do is judge whether a mean moved.
 
-\rauma{} is not proposed as a stronger acquisition function. On graphs this small, exact
-expected information gain runs in milliseconds and max-degree is already near-optimal, so an
-LLM selector buys nothing but generality. The selector comparison is diagnostic: it
-establishes that experiment selection is \emph{not} a plausible source of end-to-end failure
-here, which is what makes the readout result interpretable. Our contributions, in order of
-importance:
-\begin{itemize}
-\item \textbf{Role-factorized evaluation:} a paired factorial study --- 16 matched
-selector--readout configurations over 640 episodes plus two unscaffolded baselines over 80
-more --- measuring the marginal effect of \emph{choosing} and of \emph{concluding} separately
-rather than reporting one end-to-end score.
-\item \textbf{A localized diagnosis:} edge-level audits showing that small LLMs select
-near-optimal interventions and then reverse the arrows those interventions were run to
-resolve, plus a per-edge substitution decomposing that loss into global reconstruction
-burden, missing causal rule, and --- the largest term --- an inability to compare a mean
-difference to its sampling scale.
-\item \textbf{An auditable architecture, and what it says about verifiers:} every \rauma{}
-arrow is traceable to a statistic or a rule, and the same trace shows the verifier's residual
-error is entirely type-I error at a conventional threshold, with the standard remedy of
-abstaining under uncertainty making it worse.
-\end{itemize}
+\rauma{} is not proposed as a stronger acquisition function: on graphs this small exact
+information gain runs in milliseconds and max-degree is already near-optimal, so an LLM selector
+buys only generality. The selector comparison is diagnostic --- it establishes that experiment
+selection is \emph{not} a plausible source of end-to-end failure here, which is what makes the
+readout result interpretable. Our contributions, in order of importance:
 
 \section{Method}
 \label{sec:method}
@@ -228,10 +206,9 @@ graph unchanged.
   \node[anchor=west, font=\scriptsize, text=blue!55] at (6.35,0.95) {one integer per round};
   \node[anchor=west, font=\scriptsize, text=black!55] at (2.9,-2.9) {graph is never written by the model};
 \end{tikzpicture}}
-\caption{\rauma{} separates proposal from belief revision. The LLM sees a compact structural
-state and returns only an intervention target; the mean-shift test and \meek{} closure alone
-determine the next graph, which \rauma{} also submits as its final output. Every arrow in
-the output is traceable to a test statistic or a graphical rule.}
+\caption{\rauma{} separates proposal from belief revision. The LLM returns only an intervention
+target; the mean-shift test and \meek{} closure alone determine the next graph, which is also the
+submitted output.}
 \label{fig:method}
 \end{figure}
 
@@ -284,22 +261,21 @@ measured.
 \label{sec:design}
 We cross five selectors with two readouts and fix everything else. The selectors are uniform
 random over open targets; maximum undirected degree; exact \emph{structural MEC-EIG}; the
-\rauma{} LLM proposer; and a \emph{truth-gain reference} that greedily maximizes edges
-resolved after closure under the hidden DAG. Under a uniform prior over the current class
-$\mathcal{G}_t$, MEC-EIG picks the target maximizing $H(\mathcal{G}_t) - \sum_z p(z \mid a)
-H(\mathcal{G}_t \mid z, a)$, where $z$ is the orientation signature of the edges touching $a$.
-Every main instance has an exhaustively enumerable class (largest observed
-$|\mathcal{G}_0|=28$, cap 256), so this is computed exactly --- but it remains a
-\emph{structural} surrogate over graphs rather than full Bayesian design over SCM parameters,
-and we keep the qualified name throughout.
+\rauma{} LLM proposer; and a \emph{truth-gain reference} that greedily maximizes edges resolved
+after closure under the hidden DAG. Under a uniform prior over the current class $\mathcal{G}_t$,
+MEC-EIG picks the target maximizing $H(\mathcal{G}_t) - \sum_z p(z \mid a) H(\mathcal{G}_t \mid
+z, a)$, where $z$ is the orientation signature of the edges touching $a$. Every main instance has
+an exhaustively enumerable class (largest observed $|\mathcal{G}_0|=28$, cap 256), so this is
+computed exactly --- but it remains a \emph{structural} surrogate over graphs rather than full
+Bayesian design over SCM parameters, and we keep the qualified name throughout.
 
 The two readouts are $\rho_{\mathrm{id}}$, which submits the mechanically updated graph, and
-$\rho_{\mathrm{LLM}}$, which shows an LLM the initial PC graph plus the per-experiment
-sufficient statistics and takes the returned graph through a forced tool call. Critically,
-the readout prompt states the intervention-to-orientation rule and the two-standard-error
-convention explicitly (Appendix~\ref{app:prompts}), so we are not testing whether a model can
-invent causal-discovery theory unaided. A shared sanitizer removes malformed, cyclic or
-duplicated edges and logs every removal.
+$\rho_{\mathrm{LLM}}$, which shows an LLM the initial PC graph plus the per-experiment sufficient
+statistics and takes the returned graph through a forced tool call. Critically, the readout
+prompt states the intervention-to-orientation rule and the two-standard-error convention
+explicitly (Appendix~\ref{app:prompts}): we are not testing whether a model can invent
+causal-discovery theory unaided. A shared sanitizer removes malformed, cyclic or duplicated edges
+and logs every removal.
 
 What makes the comparison controlled is that the online updater $U$ is the mean-shift rule in
 \emph{every} grid arm, so changing the readout alters neither which experiments were run nor
@@ -326,18 +302,17 @@ $|I^*|+1$ for $I^*$ the minimum sufficient intervention set computed from the tr
 $2.4$ to $3.2$ interventions on average (Table~\ref{tab:ladder}).
 Appendix~\ref{app:instances} gives the generator and acceptance policy in full.
 
-Two design points invite suspicion. First, the instance filter is a \emph{non-triviality}
-policy --- it rejects graphs with fewer than two undirected edges, undirected edges all
-sharing one node, disconnected skeletons, near-singular covariance, or a structurally relevant
-partial correlation below $0.1$ --- and never inspects the front-end's output or any policy's
-score. Across the main study 122 candidates were sampled to accept 40 ($32.8\%$), and all 82
-rejections came from the graph-level triviality conditions. What was tuned in advance is the
-\emph{level design}: at density $|E|=d$ the PC front-end is competent but imperfect (mean
-skeleton-F1 ceiling $0.938$), whereas denser graphs make PC's skeleton wrong often enough that
-every arm hits the same low ceiling and the selector--readout contrast becomes unmeasurable.
-Second, the true DAG lies in PC's class in only $40\%$ of instances: elsewhere the agent starts
-from a CPDAG that is already partly wrong, so every arm faces an F1 ceiling below $1$. That
-makes the front-end a realistic upstream component rather than an oracle, and since it applies
+Two design points invite suspicion. First, the instance filter is a \emph{non-triviality} policy
+--- it rejects graphs with fewer than two undirected edges, undirected edges all sharing one
+node, disconnected skeletons, near-singular covariance, or a structurally relevant partial
+correlation below $0.1$ --- and never inspects the front-end's output or any policy's score.
+Across the main study 122 candidates were sampled to accept 40 ($32.8\%$), and all 82 rejections
+came from the triviality conditions. What was tuned in advance is the \emph{level design}: at
+density $|E|=d$ the PC front-end is competent but imperfect (mean skeleton-F1 ceiling $0.938$),
+whereas denser graphs make its skeleton wrong often enough that every arm hits the same low
+ceiling. Second, the true DAG lies in PC's class in only $40\%$ of instances: elsewhere the agent
+starts from a CPDAG already partly wrong, so every arm faces an F1 ceiling below $1$. That makes
+the front-end a realistic upstream component rather than an oracle, and since it applies
 identically to all arms it cannot generate the contrasts we report.
 
 \paragraph{Models and protocol.}
@@ -361,8 +336,8 @@ episodes, and a model-free verifier-calibration sweep adds no LLM cost.
 Table~\ref{tab:main} and Figure~\ref{fig:factorial}(a) report the arm-level results. Within
 either model's five-selector comparison, arm means differ by at most $0.025$ F1, and every
 mechanical arm reproduces the front-end's skeleton and compelled-edge scores exactly, because
-target selection cannot alter them. Holding the selector fixed and changing only the readout
-costs about $0.32$ F1 and $2.3$--$3.0$ SHD, for every selector and both models.
+target selection cannot alter them. Changing only the readout costs about $0.32$ F1 and
+$2.3$--$3.0$ SHD, for every selector and both models.
 
 Because the design is factorial, each axis is best read as a marginal effect over the other.
 Averaging each instance over the five selectors, the mechanical readout beats the LLM readout
@@ -380,14 +355,13 @@ tool calls and five schema-repair calls.
 
 \begin{table}[t]
 \caption{Main results, 40 paired instances per arm, mean $\pm$ 95\% CI. Changing the readout
-(across blocks) costs roughly $0.32$ directed F1; changing the selector (within a block)
-changes it by at most $0.025$. Full 18-configuration grid: Appendix~\ref{app:grid}. Token
-counts are not comparable across blocks --- the unscaffolded agent receives raw rows, the
-others sufficient statistics; Appendix~\ref{app:robust} isolates that factor.}
+(across blocks) costs roughly $0.32$ directed F1; changing the selector (within a block) at most
+$0.025$. Full grid: Appendix~\ref{app:grid}. Token counts are not comparable across blocks
+(Appendix~\ref{app:robust}).}
 \label{tab:main}
 \centering
 \small
-\setlength{\tabcolsep}{5.0pt}
+\setlength{\tabcolsep}{4.4pt}
 \begin{tabular}{llccccccc}
 \toprule
 Selector & Model & directed F1 & comp.\ F1 & skel.\ F1 & SHD & interv. & tokens & \$/ep. \\
@@ -416,11 +390,10 @@ LLM & gpt-4o-mini & $0.000 \pm 0.000$ & $0.275$ & $0.204$ & $10.50$ & $2.78$ & $
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{rauma_f2_factorial.pdf}
-\caption{Factorial results. (a) Arm means with 95\% CIs over 40 paired instances; the dashed
-line is the mean skeleton F1 attainable after the PC front-end. Two cells are absent because
-each LLM selector is paired only with the readout using the same model. (b) Paired
-contrasts: orange rows change only the readout, blue rows only the selector. Every blue
-interval contains zero.}
+\caption{Factorial results, 40 paired instances, 95\% CIs. (a) Arm means against the front-end's
+skeleton-F1 ceiling (dashed); two cells are absent because each LLM selector is crossed only with
+its own model's readout. (b) Paired contrasts --- orange changes only the readout, blue only the
+selector. Every blue interval contains zero.}
 \label{fig:factorial}
 \end{figure}
 
@@ -428,11 +401,11 @@ interval contains zero.}
 \label{sec:diagnosis}
 
 An aggregate gap does not identify a mechanism, so we audit every arrow the readouts submit.
-Pinning selection to the truth-gain reference makes the comparison exact: both readouts then
-consume the same interventions on the same instances and see the same statistics. Each arrow
-is classified as correctly oriented, reversed along a true adjacency, or spurious, then
-partitioned by whether the observational CPDAG had already fixed it or the experiment was
-supposed to settle it (Appendix~\ref{app:audit}).
+Pinning selection to the truth-gain reference makes the comparison exact: both readouts consume
+the same interventions on the same instances and see the same statistics. Each arrow is
+classified as correctly oriented, reversed along a true adjacency, or spurious, then partitioned
+by whether the observational CPDAG had already fixed it or the experiment was supposed to settle
+it (Appendix~\ref{app:audit}).
 
 The two readouts submit the same number of arrows for qwen3-30b (255 each), so the gap is not
 abstention. The mechanical rule orients $91\%$ correctly and $8\%$ in reverse; the LLM orients
@@ -447,23 +420,19 @@ flipping.
 
 The specificity of this pattern is the point. The models do not fail at graph reasoning in
 general --- they reproduce the passive-data orientations and, for qwen3-30b, the skeleton and
-compelled-edge scores almost intact (Appendix~\ref{app:audit}). They fail at the one step that
-converts an experiment into an arrow, and they fail there while attending to the evidence:
-$80$--$100\%$ of their rationales discuss the interventions and $62$--$90\%$ mention the
-observed shifts, often confusing an intervention's \emph{descendants} with its \emph{children}
---- ``variables whose means changed are descendants of $X_2$; this makes $X_2$ a parent of
-these variables'' --- which is exactly the inference the mechanical rule is forbidden from
-making (Appendix~\ref{app:rationale}). Section~\ref{sec:verifier} shows this is a symptom of
-something narrower.
+compelled-edge scores almost intact. They fail at the one step that converts an experiment into
+an arrow, and they fail there while attending to the evidence: $80$--$100\%$ of their rationales
+discuss the interventions and $62$--$90\%$ mention the observed shifts, often confusing an
+intervention's \emph{descendants} with its \emph{children} --- ``variables whose means changed
+are descendants of $X_2$; this makes $X_2$ a parent of these variables'' --- exactly the
+inference the mechanical rule is forbidden from making (Appendix~\ref{app:rationale}).
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{rauma_f3_readout.pdf}
-\caption{Anatomy of the readout gap, with selection pinned so both readouts see identical
-experiments and identical evidence. (a) Every submitted arrow is correctly oriented, reversed
-along a true adjacency, or spurious. (b) The same arrows split by who had to decide the
-direction. The LLM inherits the observational arrows as reliably as the mechanical rule and
-orients the experiment-dependent ones at chance level.}
+\caption{Anatomy of the readout gap, selection pinned so both readouts see identical evidence.
+(a) Every submitted arrow: correctly oriented, reversed along a true adjacency, or spurious.
+(b) The same arrows split by who had to decide the direction.}
 \label{fig:readout}
 \end{figure}
 
@@ -487,13 +456,13 @@ non-shifts whose noise crossed $1.96$, and raising the cut to $3.29$ makes it ex
 standard remedy for an imperfect verifier, makes things \emph{worse} because that band is
 where the rule is most reliable).
 
-\paragraph{So we hand the model one edge at a time.} If the evidence is unambiguous, the
-failure lies in what the model does with it. We substitute an LLM for the mean-shift test at
-exactly the point where evidence becomes an arrow: for each undecided neighbor it receives one
-tuple --- the pair, the intervention, and $X_b$'s mean, standard deviation and sample size in
-each panel --- and answers $a \to b$, $b \to a$ or abstain, with everything else including
-\meek{} closure left mechanical. Three prompt conditions vary what it gets beyond the numbers:
-nothing (\textsc{numbers}), the intervention-to-orientation rule and the standard-error formula
+\paragraph{So we hand the model one edge at a time.} If the evidence is unambiguous, the failure
+lies in what the model does with it. We substitute an LLM for the mean-shift test at exactly the
+point where evidence becomes an arrow: for each undecided neighbor it receives one tuple --- the
+pair, the intervention, and $X_b$'s mean, standard deviation and sample size in each panel ---
+and answers $a \to b$, $b \to a$ or abstain, with everything else including \meek{} closure left
+mechanical. Three prompt conditions vary what it gets beyond the numbers: nothing
+(\textsc{numbers}), the intervention-to-orientation rule and the standard-error formula
 (\textsc{+rule}), and additionally the pre-computed $Z$ with the $1.96$ convention
 (\textsc{+$Z$}); Appendix~\ref{app:ladder} gives them verbatim.
 
@@ -507,23 +476,22 @@ evidence but the numeric reduction, which the models cannot perform reliably eve
 exactly how.
 
 \paragraph{They are not reading the numbers at all.} The error structure confirms this. Each
-model has a fixed prior that the evidence barely moves: qwen3-30b answers $a \to b$ on
-$70$--$72\%$ of decisions in \emph{every} condition, close to the $70\%$ base rate, and gets
-only $12.5\%$ of the true $b \to a$ cases right. gpt-4o-mini does the opposite, answering
-$b \to a$ on $76\%$ of its numbers-only decisions and getting $94.7\%$ of true $b \to a$ but $33.3\%$ of true
-$a \to b$. One model assumes an intervention always propagates, the other that it never
-does. This is response bias, not misjudged significance, and it explains why the
-whole-graph readout reverses roughly half of the experiment-dependent arrows
-(Section~\ref{sec:diagnosis}) while faithfully reproducing the observational ones.
+model holds a fixed prior the evidence barely moves: qwen3-30b answers $a \to b$ on $70$--$72\%$
+of decisions in \emph{every} condition, close to the $70\%$ base rate, and gets $12.5\%$ of the
+true $b \to a$ cases right; gpt-4o-mini does the opposite, answering $b \to a$ on $76\%$ of its
+numbers-only decisions. One model assumes an intervention always propagates, the other that it
+never does --- response bias, not misjudged significance.
 
 \paragraph{The gap decomposes.} Running the same substitution end-to-end splits the readout
 deficit into three named parts (Appendix~\ref{app:ladder}). For qwen3-30b, of the $0.279$ F1
-between the free-form readout and the mechanical rule, decomposing the graph into one-edge
-decisions recovers $0.067$ ($24\%$, $p=0.031$), stating the causal rule a further $0.079$
-($28\%$, $p=0.019$), and supplying $Z$ a further $0.130$ ($47\%$, $p=1.7\times10^{-4}$),
-leaving $0.003$ unexplained. For gpt-4o-mini the same three terms are $0.133$, $0.041$ and
-$0.121$ of a $0.320$ gap. Global reconstruction burden is real but secondary; the largest
-single term is the arithmetic.
+between the free-form readout and the mechanical rule, one-edge decomposition recovers $0.067$
+($p=0.031$), stating the causal rule a further $0.079$ ($p=0.019$) and supplying $Z$ a further
+$0.130$ ($p=1.7\times10^{-4}$), leaving $0.003$; for gpt-4o-mini the terms are $0.133$, $0.041$
+and $0.121$ of a $0.320$ gap. Reconstruction burden is real but secondary; the largest single
+term is the arithmetic. This sharpens the architectural claim rather than softening it. The right
+boundary is not ``keep the model away from the evidence'' but ``the reduction from data to a
+decision statistic must be mechanical'' --- and once that statistic exists, delegating the last
+step is pointless, costing an API call and, for gpt-4o-mini, $0.025$ F1 ($p=0.018$).
 
 This sharpens the architectural claim rather than softening it. The right boundary is not
 ``keep the model away from the evidence'' but ``the reduction from data to a decision
@@ -534,125 +502,98 @@ pointless: it costs an API call and, for gpt-4o-mini, $0.025$ F1 ($p=0.018$).
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{rauma_f6_verifier.pdf}
-\caption{Where the readout actually breaks. (a) The $|Z|$ behind all 439 local orientation
-decisions of the mean-shift rule, split by the true direction; the classes do not overlap and
-nothing lands in the shaded gap. (b) The same one-edge decision handed to an LLM, scored on
-the 72 first-round decisions every condition sees identically. Numbers alone leave both models
-at chance; stating the causal rule is not enough; supplying the computed $Z$ nearly closes the
-gap to the rule.}
+\caption{Where the readout breaks. (a) The $|Z|$ behind all 439 local orientation decisions of
+the mean-shift rule, split by the true direction; the classes do not overlap. (b) The same
+one-edge decision handed to an LLM, on the 72 first-round decisions every condition sees
+identically.}
 \label{fig:verifier}
 \end{figure}
 
 \paragraph{Two remaining explanations do not survive either.} The readout might fail because it
-sees summary statistics rather than raw data, or the rule might be flattered by the sample size.
-Neither holds (Appendix~\ref{app:robust}). Serving the readout the raw interventional rows on the
-\emph{same} instances grows its prompt from $0.8$--$1.4$k to $18$--$26$k tokens and costs
-$0.043$ F1 for qwen3-30b ($p=0.050$) while leaving gpt-4o-mini flat ($p=0.95$); what the extra
-context buys is spurious structure, with non-adjacent arrows rising from $3.3\%$ to $10.2\%$ and
-from $9.8\%$ to $25.2\%$ respectively, and reversal rates on experiment-dependent arrows barely
-moving. Sweeping $n_{\mathrm{obs}} \in \{60, 300, 1000\}$ moves the mechanical readout from
-$0.73$ to $0.91$ F1 but the LLM readout only from $0.52$ to $0.67$, leaving a paired gap of
-$0.22$--$0.24$ for qwen3-30b ($p \le 6\times10^{-4}$ throughout) and $0.26$--$0.33$ for
-gpt-4o-mini. Seventeen times more data does not close it, which is what the diagnosis above
-predicts: the quality of the statistic was never the binding constraint.
+sees summary statistics rather than raw data, or the rule might be flattered by the sample size;
+neither holds (Appendix~\ref{app:robust}). Raw interventional rows on the \emph{same} instances
+grow the prompt from $0.8$--$1.4$k to $18$--$26$k tokens and cost qwen3-30b $0.043$ F1
+($p=0.050$) while leaving gpt-4o-mini flat, buying spurious structure --- non-adjacent arrows
+rise from $3.3\%$ to $10.2\%$ and from $9.8\%$ to $25.2\%$ --- with reversal rates barely moving.
+And sweeping $n_{\mathrm{obs}} \in \{60, 300, 1000\}$ moves the mechanical readout from $0.73$ to
+$0.91$ F1 but the LLM readout only from $0.52$ to $0.67$: seventeen times more data leaves a gap
+of $0.22$--$0.24$, because the quality of the statistic was never the binding constraint.
 
 \subsection{Selection: near-optimal choices, a small and regime-dependent payoff}
 \label{sec:selection}
 
 The other axis behaves in the opposite way: the models are good at it, and it barely matters.
 
-\paragraph{The choices are near-optimal --- but so is a one-line heuristic.} Scoring each
-round against the exact structural MEC-EIG objective, qwen3-30b picks an optimal target in
-$93.0\%$ of its on-policy rounds, against $100\%$ for exact MEC-EIG by construction, $95.7\%$
-for max-degree, $79.5\%$ for gpt-4o-mini and $55.7\%$ for random
-(Figure~\ref{fig:selection}(a)); its selection regret is $0.225$ edges per episode versus
-$1.350$ for random. Three qualifications keep the number honest: it is measured on each policy's own state
-distribution, ties count as optimal, and the objective is a structural surrogate, not full
-Bayesian information gain. On a stricter common-state test the LLM falls further behind
-($73.7\%$ first-round agreement with MEC-EIG against $92.1\%$ for max-degree,
-Appendix~\ref{app:sel}). The honest summary is that a prompted LLM is competitive with, and
-slightly worse than, sorting nodes by undirected degree, while being slower and costing money.
-Whether prompt-based selection stays competitive when the equivalence class is too large to
-enumerate is an open question our experiments do not test.
+\paragraph{The choices are near-optimal --- but so is a one-line heuristic.} Scored against the
+exact structural MEC-EIG objective, qwen3-30b picks an optimal target in $93.0\%$ of its
+on-policy rounds, against $100\%$ for MEC-EIG by construction, $95.7\%$ for max-degree, $79.5\%$
+for gpt-4o-mini and $55.7\%$ for random (Appendix~\ref{app:sel}). Three qualifications keep the
+number honest: it is measured on each policy's own states, ties count as optimal, and the
+objective is a structural surrogate, not full Bayesian information gain. On a stricter
+common-state test the LLM falls further behind ($73.7\%$ first-round agreement with MEC-EIG
+against $92.1\%$ for max-degree). A prompted LLM is thus competitive with, and slightly worse
+than, sorting nodes by undirected degree, while being slower and costing money. Whether
+prompt-based selection survives when the class is too large to enumerate is an open question our
+experiments do not test.
 
-\paragraph{The payoff is small and regime-dependent.} Figure~\ref{fig:selection}(b) shows a
-nine-fold range of choice quality mapping onto a $0.025$ range of F1, because one spare
-intervention usually repairs a bad choice. Removing that slack changes things: at budget
-$|I^*|$ instead of $|I^*|+1$, \rauma{} exceeds random by $+0.032$ ($p=0.017$) against
-$+0.018$ ($p=0.28$) in the main regime, and the gain is $+0.055$ at $n_{\mathrm{obs}}=60$
-($p=0.011$) and $+0.039$ at $n_{\mathrm{obs}}=1000$ ($p=0.017$). The effect is thus small in
-the main regime and larger in all three alternative regimes, largest in the data-poor one, but
-not monotone in the amount of data. \rauma{} ties exact MEC-EIG in three of four regimes
-($|\Delta| \leq 0.004$) and is numerically $0.028$ lower in the noisiest, which is not
-significant ($p=0.11$); across twelve such comparisons the $p$-values are uncorrected and
-several would not survive Bonferroni (Appendix~\ref{app:sel}).
+\paragraph{The payoff is small and regime-dependent.} A nine-fold range of choice quality maps
+onto a $0.025$ range of F1, because one spare intervention usually repairs a bad choice. Removing
+that slack changes things: at budget $|I^*|$ instead of $|I^*|+1$, \rauma{} exceeds random by
+$+0.032$ ($p=0.017$) against $+0.018$ ($p=0.28$) in the main regime, and the gain is $+0.055$ at
+$n_{\mathrm{obs}}=60$ ($p=0.011$) and $+0.039$ at $n_{\mathrm{obs}}=1000$ ($p=0.017$) --- small
+in the main regime, larger in all three alternative regimes, largest in the data-poor one, but
+not monotone in the amount of data. \rauma{} ties MEC-EIG in three of four regimes ($|\Delta|
+\leq 0.004$) and is $0.028$ lower in the noisiest, not significantly ($p=0.11$); across twelve
+such comparisons the $p$-values are uncorrected and several would not survive Bonferroni.
 
-Selection therefore contributes $0.02$--$0.08$ F1 against $0.22$--$0.32$ for interpretation:
-an order of magnitude apart, with only the interpretation effect significant without degrading
-the evidence. The practical consequence is a warning about evaluation --- end-to-end accuracy
-is a poor diagnostic for an experiment-design policy, because a $93\%$ and a $56\%$
-optimal-choice rate are nearly indistinguishable in the final score whenever the budget has
-any slack.
+Selection therefore contributes $0.02$--$0.08$ F1 against $0.22$--$0.32$ for interpretation, an
+order of magnitude apart. The practical consequence is a warning about evaluation: end-to-end
+accuracy is a poor diagnostic for an experiment-design policy, because a $93\%$ and a $56\%$
+optimal-choice rate are nearly indistinguishable in the final score whenever the budget has any
+slack.
 
-\paragraph{Cost.} \rauma{} spends about a thousand tokens and two forced tool calls per
-episode, \$$0.0003$, so restoring the scaffold is worth $+0.710$ and $+0.856$ F1 ($p<10^{-7}$)
-at a thirty-fifth of the tokens (Appendix~\ref{app:cost}) --- a measure of the whole scaffold
-rather than of model efficiency.
+\paragraph{Cost.} \rauma{} spends about a thousand tokens and two forced tool calls per episode,
+\$$0.0003$, so restoring the scaffold is worth $+0.710$ and $+0.856$ F1 ($p<10^{-7}$) at a
+thirty-fifth of the tokens (Appendix~\ref{app:cost}).
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.8\linewidth]{rauma_f5_selection.pdf}
-\caption{Choice quality and final score can be dissociated. (a) Share of rounds in which the
-selector picked a target attaining the exact structural MEC-EIG optimum. (b) The resulting
-directed F1, unpaired 95\% CIs, in the same order. (c) Paired gain over the random selector
-in four regimes; the effect is small everywhere and separates from zero once the budget or
-the data becomes scarce.}
-\label{fig:selection}
-\end{figure}
 
 \section{Conclusion}
 \label{sec:conclusion}
 
 We decomposed LLM-driven active causal discovery into experiment selection and evidence
-interpretation and measured both over 1{,}800 episodes. Selection is the easy half: a 30B open
+interpretation and measured both over 2{,}040 episodes. Selection is the easy half: a 30B open
 model picks a target optimal for our structural MEC-EIG surrogate in $93\%$ of its rounds
 without a likelihood, prior or enumerated class --- although max-degree reaches $96\%$ and the
 whole axis moves the score by at most $0.025$. Interpretation is where the system breaks: on
 identical evidence both models reverse roughly half of the experiment-critical arrows, and
-neither raw data nor seventeen times more of it helps. The mechanism is sharper than a capability gap: reducing the task to a
-single edge and supplying the pre-computed $z$ lifts a 30B model from chance to $94\%$ of
-decisions correct against the rule's $96\%$, so the models can apply the causal rule but cannot
-decide whether a mean moved, each falling back on a fixed prior the evidence barely disturbs.
-\rauma{} takes the corresponding design decision --- the LLM proposes, a fixed test and \meek{}
-closure dispose --- reaching $0.861$ F1 for three hundredths of a cent per episode with every
-arrow traceable to a statistic or a rule.
+neither raw data nor seventeen times more of it helps. The mechanism is sharper than a
+capability gap: reducing the task to a single edge and supplying the pre-computed $z$ lifts a
+30B model from chance to $94\%$ of decisions correct against the rule's $96\%$, so the models
+can apply the causal rule but cannot decide whether a mean moved, each falling back on a fixed
+prior the evidence barely disturbs.
 
 In these small, anonymized instances the dominant measurable failure is thus not choosing what
-to try but converting what happened into a graph. More broadly, the boundary of model authority
-mattered more than the choice between comparably small models: changing the model moves F1 by
-$0.005$, whereas changing which component may state the causal conclusion moves it by $0.32$.
-Where to draw that boundary is the practical question, and our decomposition answers it more
-narrowly than ``keep the model out'': the reduction from data to a decision statistic must be
-mechanical, and once it is, little is left to get wrong. The same trace shows a verifier is
-worth auditing on its own terms --- its residual error was a badly placed threshold, not
-genuine ambiguity, and abstaining under uncertainty made it worse.
+to try but converting what happened into a graph, and the boundary of model authority matters
+more than the choice between comparably small models: changing the model moves F1 by $0.005$,
+whereas changing which component may state the conclusion moves it by $0.32$. Our decomposition
+says where to put that boundary more precisely than ``keep the model out'' --- the reduction
+from data to a decision statistic must be mechanical, and once it is, little is left to get
+wrong. \rauma{} takes exactly that decision, reaching $0.861$ F1 for three hundredths of a cent
+per episode with every arrow traceable to a statistic or a rule.
 
 \section*{Reproducibility statement}
 
 All LLM results come from 2{,}040 episodes: 720 main (640 grid $+$ 80 unscaffolded), 240
 tight-budget, 720 sample-size, 120 evidence-format and 240 per-edge readout; the verifier sweep
-and the decision replay of Section~\ref{sec:verifier} add model-free runs that cost nothing to
-reproduce. The release includes per-episode CSV logs, per-round step logs, per-decision orientation logs
-with the $|Z|$ behind each one,
-the full LLM call trace, a run manifest recording the seed map, and the fixed
-instance-acceptance preflight. Every arm within a run shares that seed map, so all comparisons
-are paired unless stated otherwise; the sample-size and evidence-format runs use a separate
-instance draw and are marked unpaired where they are compared to the main study. All non-LLM
-arms are deterministic --- two independent runs of 160 model-free episodes reproduced identical
-scores. Both LLMs run at temperature zero with forced tool calls, and every prompt is a fixed
-string reproduced in Appendix~\ref{app:prompts}. Code, logs, figure and audit scripts, the
-exact command for every arm, and a script that recomputes every number in this paper are
-included; the complete LLM study reruns for \$$2.56$.
+and the decision replay of Section~\ref{sec:verifier} are model-free. The release includes
+per-episode and per-round logs, per-decision orientation logs with the $|Z|$ behind each one,
+the full LLM call trace, the seed map and the fixed acceptance preflight. Every arm within a run
+shares that seed map, so all comparisons are paired unless marked otherwise. Non-LLM arms are
+deterministic: two independent runs of 160 model-free episodes reproduced identical scores. Both
+LLMs run at temperature zero with forced tool calls, and every prompt is a fixed string
+reproduced in Appendix~\ref{app:prompts}. Code, logs, figure and audit scripts, the exact command
+for every arm, and a script recomputing every number here are included; the whole study reruns
+for \$$2.56$.
 
 \appendix
 
@@ -810,7 +751,7 @@ the returned arguments fail validation.
 
 \paragraph{Selector.} System prompt:
 
-\begin{quote}\small\ttfamily
+\begin{quote}\small\ttfamily\raggedright
 You are the experiment-design module of a causal discovery system.\\
 The world is an unknown linear-Gaussian DAG with no hidden confounders and full
 observability.\\
@@ -837,7 +778,7 @@ and a string \texttt{rationale}.
 
 \paragraph{Readout.} System prompt:
 
-\begin{quote}\small\ttfamily
+\begin{quote}\small\ttfamily\raggedright
 You are the structure-inference module of a causal discovery system.\\
 The world is an unknown linear-Gaussian DAG with no hidden confounders and full
 observability.\\
@@ -865,7 +806,7 @@ the observational rows are appended. The tool \texttt{submit\_graph} takes
 
 \paragraph{Unscaffolded agent.} System prompt:
 
-\begin{quote}\small\ttfamily
+\begin{quote}\small\ttfamily\raggedright
 You are performing causal discovery over an unknown linear-Gaussian DAG with full
 observability and no hidden confounders.\\
 Correlation is not causation: chains and common causes create dependence between variables
@@ -995,10 +936,10 @@ Clopper--Pearson 95\% intervals. All three LLM intervals contain $50\%$.}
 \label{tab:audit}
 \centering
 \small
-\setlength{\tabcolsep}{4pt}
+\setlength{\tabcolsep}{2.5pt}
 \begin{tabular}{lcccccll}
 \toprule
-Readout & arrows & correct & reversed & spurious & obs.\ reversed & exp.\ reversed & 95\% CI \\
+Readout & arrows & correct & reversed & spurious & obs.\ rev. & exp.\ rev. & 95\% CI \\
 \midrule
 mean-shift $+$ \meek{} & $255$ & $91.0\%$ & $8.2\%$ & $0.8\%$ & $11/124 = 8.9\%$ & $\mathbf{10/131 = 7.6\%}$ & $[3.7,\,13.6]$ \\
 LLM qwen3-30b & $255$ & $63.1\%$ & $29.4\%$ & $7.5\%$ & $12/123 = 9.8\%$ & $\mathbf{63/113 = 55.8\%}$ & $[46.1,\,65.1]$ \\
@@ -1377,6 +1318,17 @@ LLM & gpt-4o-mini & $0.610$ ($1.8$k) & $0.586$ ($17.9$k) & $-0.024$ & $0.48$ & $
 \section{Selection quality}
 \label{app:sel}
 
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\linewidth]{rauma_f5_selection.pdf}
+\caption{Choice quality and final score can be dissociated. (a) Share of rounds in which the
+selector picked a target attaining the exact structural MEC-EIG optimum. (b) The resulting
+directed F1, unpaired 95\% CIs, in the same order. (c) Paired gain over the random selector
+in four regimes; the effect is small everywhere and separates from zero once the budget or
+the data becomes scarce.}
+\label{fig:selection}
+\end{figure}
+
 Table~\ref{tab:sel} gives the per-episode selection diagnostics behind
 Figure~\ref{fig:selection}(a), and Table~\ref{tab:selreg} the paired contrasts behind panel
 (c). Regret, quality and MEC-EIG regret are computed by the benchmark from the hidden DAG and
@@ -1476,14 +1428,15 @@ the released manifest.}
 \label{tab:cost}
 \centering
 \small
+\setlength{\tabcolsep}{3.5pt}
 \begin{tabular}{llccccc}
 \toprule
 Arm & Model & prompt tok. & completion tok. & LLM calls & \$/episode & directed F1 \\
 \midrule
 \textbf{\rauma} & gpt-4o-mini & $944$ & $78$ & $1.83$ & $0.00019$ & $0.856$ \\
 \textbf{\rauma} & qwen3-30b & $1{,}395$ & $98$ & $1.78$ & $0.00031$ & $\mathbf{0.861}$ \\
-LLM sel.\ $+$ LLM readout & gpt-4o-mini & $1{,}618$ & $195$ & $2.83$ & $0.00036$ & $0.533$ \\
-LLM sel.\ $+$ LLM readout & qwen3-30b & $2{,}497$ & $543$ & $2.83$ & $0.00097$ & $0.520$ \\
+LLM $+$ LLM readout & gpt-4o-mini & $1{,}618$ & $195$ & $2.83$ & $0.00036$ & $0.533$ \\
+LLM $+$ LLM readout & qwen3-30b & $2{,}497$ & $543$ & $2.83$ & $0.00097$ & $0.520$ \\
 no scaffold & gpt-4o-mini & $35{,}163$ & $241$ & $3.78$ & $0.00365$ & $0.000$ \\
 no scaffold & qwen3-30b & $51{,}556$ & $477$ & $3.78$ & $0.00749$ & $0.152$ \\
 \bottomrule
