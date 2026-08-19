@@ -83,8 +83,11 @@ bash scripts/study1.sh smoke
 bash scripts/study2.sh smoke
 ```
 
-Xong phải thấy `traces/study{1,2}/smoke/analysis/tables.md`. Nếu smoke chạy được thì
-`main` chắc chắn chạy được.
+Xong phải thấy `study1/smoke/analysis/tables.md` và `traces/study2/smoke/analysis/tables.md`.
+Nếu smoke chạy được thì `main` chắc chắn chạy được.
+
+> Study 1 ghi kết quả vào `study1/<run>/`, study 2 vào `traces/study2/<run>/`. Đổi gốc của
+> study 1 bằng biến môi trường `ACDB_OUT_ROOT` nếu cần.
 
 ---
 
@@ -110,6 +113,61 @@ Hoặc chạy tất cả trong một lần:
 mkdir -p logs
 nohup bash -c 'bash scripts/study1.sh all && bash scripts/study2.sh all' > logs/all.log 2>&1 &
 tail -f logs/all.log
+```
+
+## 5b. Ba stage bổ sung cho bản revision của RauMa
+
+Ba stage này ghép cặp với `main` qua `--seed-map-from study1/main/run_manifest.json`.
+**Manifest đó đã nằm sẵn trong repo**, nên không cần chạy lại `main` trên server — chỉ cần
+`git pull` là chạy được ngay.
+
+| Lệnh | Episode | Thời gian | Chi phí |
+|---|---:|---|---|
+| `bash scripts/study1.sh verifier` | 1 440 | ~3 phút | **$0** (không gọi model) |
+| `bash scripts/study1.sh local` | 240 | ~15 phút | ~$0.10 |
+| `bash scripts/study1.sh rawevidence-paired` | 120 | ~20 phút | ~$0.6 |
+
+Treo cả ba lên tmux bằng một lệnh duy nhất (chạy được kể cả khi SSH rớt):
+
+```bash
+cd ~/Active-Causal-Discovery-Bench && git pull origin main && mkdir -p logs
+
+tmux new -d -s rauma "bash -lc '
+  cd ~/Active-Causal-Discovery-Bench &&
+  bash scripts/study1.sh verifier            2>&1 | tee logs/verifier.log &&
+  bash scripts/study1.sh local               2>&1 | tee logs/local.log &&
+  bash scripts/study1.sh rawevidence-paired  2>&1 | tee logs/rawpaired.log
+  echo \"=== DONE rc=\$? \$(date) ===\"; exec bash'"
+```
+
+- Xem tiến độ: `tmux attach -t rauma` — thoát ra bằng `Ctrl-b` rồi `d`
+- Xem log không cần attach: `tail -f logs/local.log`
+- Liếc nhanh: `tmux capture-pane -pt rauma | tail -20`
+- Dừng: `tmux kill-session -t rauma`
+
+Dùng `bash -lc` để tmux đọc `~/.bashrc` và thấy `conda`; `exec bash` giữ pane sống sau khi
+chạy xong để còn đọc được output. Mọi stage đều `--resume`, nên kill giữa chừng rồi chạy lại
+là nó đi tiếp từ chỗ dở, không tính tiền lại phần đã xong.
+
+### Lấy kết quả về
+
+```bash
+# trên máy local
+rsync -av --exclude='events.jsonl' --exclude='checkpoint.json' \
+    <user>@<server>:~/Active-Causal-Discovery-Bench/study1/ ./study1/
+rsync -av <user>@<server>:~/Active-Causal-Discovery-Bench/figures/rauma_f6_verifier.* ./figures/
+```
+
+Bảng tóm tắt để dán lại cho reviewer:
+
+```bash
+conda run -n acdb-active python -c "
+import pandas as pd, glob
+d = pd.concat([pd.read_csv(f) for f in glob.glob('study1/localreadout/*/decisions.csv')])
+print(d.groupby(['model_tag','prompt'], dropna=False).agg(
+    n=('correct','size'), acc=('correct','mean'),
+    abstain=('decision', lambda s: (s=='abstain').mean())).round(3).to_string())
+"
 ```
 
 ### Ước lượng thời gian và chi phí
