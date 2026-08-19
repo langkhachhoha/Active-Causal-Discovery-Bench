@@ -20,9 +20,13 @@ MODELS="${ACDB_MODELS:-qwen3-coder-30b,gpt-4o-mini}"
 WORKERS="${ACDB_WORKERS:-6}"
 STAGE="${1:-smoke}"
 
+# Every run lands under one root so that --seed-map-from, the figure scripts and the
+# paper's numbers all read the same tree. Override with ACDB_OUT_ROOT if needed.
+OUT_ROOT="${ACDB_OUT_ROOT:-study1}"
+
 run() {
     local name="$1"; shift
-    local out="traces/study1/${name}"
+    local out="${OUT_ROOT}/${name}"
     echo
     echo "=============================================================="
     echo " study1 :: ${name}"
@@ -66,13 +70,13 @@ verifier)
     # Model-free, deterministic, seconds per run: how much of the mean-shift rule's residual
     # error is the threshold rather than the evidence, and does abstaining help?
     for Z in 1.282 1.645 1.960 2.576 3.291; do
-        "$PY" run_study1_decompose.py --out-dir "study1/ablation_verifier/z${Z}" \
+        "$PY" run_study1_decompose.py --out-dir "${OUT_ROOT}/ablation_verifier/z${Z}" \
             --levels 0,1,2,3 --seeds-per-level 10 --n-obs 300 --n-int 150 \
             --selectors random,maxdeg,eig,oracle --inferencers meek --no-e2e --models "" \
             --meanshift-z "$Z"
     done
     for Z in 1.645 1.960 2.576; do
-        "$PY" run_study1_decompose.py --out-dir "study1/ablation_verifier/abstain_z${Z}" \
+        "$PY" run_study1_decompose.py --out-dir "${OUT_ROOT}/ablation_verifier/abstain_z${Z}" \
             --levels 0,1,2,3 --seeds-per-level 10 --n-obs 300 --n-int 150 \
             --selectors random,maxdeg,eig,oracle --inferencers meek --no-e2e --models "" \
             --meanshift-z "$Z" --meanshift-abstain 1.0
@@ -81,10 +85,10 @@ verifier)
     for SEL in oracle random maxdeg eig; do
         SUFFIX=""; [ "$SEL" = oracle ] || SUFFIX="_$SEL"
         "$PY" run_study1_localreadout.py --mode mechanical --selector "$SEL" \
-            --seed-map-from study1/main/run_manifest.json \
-            --out-dir "study1/localreadout/mechanical${SUFFIX}"
+            --seed-map-from "${OUT_ROOT}/main/run_manifest.json" \
+            --out-dir "${OUT_ROOT}/localreadout/mechanical${SUFFIX}"
     done
-    "$PY" scripts/make_rauma_figure_verifier.py --study-dir study1 --out-dir figures
+    "$PY" scripts/make_rauma_figure_verifier.py --study-dir "$OUT_ROOT" --out-dir figures
     ;;
 local)
     # Does the readout gap survive when the LLM only has to decide ONE edge from ONE tuple?
@@ -94,8 +98,8 @@ local)
     for M in qwen3-coder-30b gpt-4o-mini; do
         for PROMPT in stats rule rule_z; do
             "$PY" run_study1_localreadout.py --mode llm --prompt "$PROMPT" --models "$M" \
-                --seed-map-from study1/main/run_manifest.json --workers "$WORKERS" --resume \
-                --out-dir "study1/localreadout/${M}_${PROMPT}"
+                --seed-map-from "${OUT_ROOT}/main/run_manifest.json" --workers "$WORKERS" --resume \
+                --out-dir "${OUT_ROOT}/localreadout/${M}_${PROMPT}"
         done
     done
     ;;
@@ -103,7 +107,7 @@ rawevidence-paired)
     # The evidence-format ablation, re-run on the MAIN study's instances so the summary-vs-raw
     # contrast is paired instance by instance instead of comparing two separate draws.
     run ablation_rawevidence_paired --levels 1,2 --seeds-per-level 10 --n-obs 300 --n-int 150 \
-        --seed-map-from study1/main/run_manifest.json \
+        --seed-map-from "${OUT_ROOT}/main/run_manifest.json" \
         --evidence-mode raw --selectors oracle,eig,llm --inferencers llm --no-e2e
     ;;
 all)
@@ -117,4 +121,5 @@ all)
 esac
 
 echo
-echo "[study1] done. Tables and figures are in traces/study1/*/analysis/"
+echo "[study1] done. Per-run outputs are in ${OUT_ROOT}/<run>/ (episodes.csv, steps.csv,"
+echo "         summary_by_arm.csv, analysis/tables.md); figures are in figures/."
