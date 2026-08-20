@@ -170,6 +170,93 @@ print(d.groupby(['model_tag','prompt'], dropna=False).agg(
 "
 ```
 
+---
+
+## 5c. Ba stage bổ sung cho bản revision của NemChua (study 2)
+
+Ba stage này trả lời ba điểm chính của review. Hai trong ba **không gọi API lần nào**:
+chúng replay lại đúng những proposal đã ghi trong `events.jsonl`.
+
+| Lệnh | Episode | Thời gian (24 workers) | Chi phí | Trả lời điều gì |
+|---|---:|---|---|---|
+| `bash scripts/study2b.sh ranker` | 660 | ~5 phút | **$0** | Hai bậc thang mới: ranker thuần dữ liệu + skeleton thật |
+| `bash scripts/study2b.sh sepset` | 1 620 + 60 300 | ~45 phút | ~$5 | Prompt sai thống kê có phải nguyên nhân không |
+| `bash scripts/study2b.sh perm` | 152 760 | ~50 phút | **$0** | Random control khớp đúng số edit thực tế |
+
+`perm` là stage quan trọng nhất và tốn $0, nên nếu chỉ chạy được một thứ thì chạy nó.
+
+Treo cả ba lên tmux bằng một lệnh duy nhất:
+
+```bash
+cd ~/Active-Causal-Discovery-Bench && git pull origin main && mkdir -p logs
+
+tmux new -d -s nemchua "bash -lc '
+  cd ~/Active-Causal-Discovery-Bench &&
+  conda activate acdb-active &&
+  bash scripts/study2b.sh smoke   2>&1 | tee logs/s2b_smoke.log &&
+  bash scripts/study2b.sh ranker  2>&1 | tee logs/s2b_ranker.log &&
+  bash scripts/study2b.sh sepset  2>&1 | tee logs/s2b_sepset.log &&
+  ACDB_PERM_WORKERS=24 bash scripts/study2b.sh perm 2>&1 | tee logs/s2b_perm.log
+  echo \"=== DONE rc=\$? \$(date) ===\"; exec bash'"
+```
+
+- Xem tiến độ: `tmux attach -t nemchua` — thoát bằng `Ctrl-b` rồi `d`
+- Liếc nhanh: `tmux capture-pane -pt nemchua | tail -20`
+- Dừng: `tmux kill-session -t nemchua`
+
+`smoke` chạy đầu tiên và `&&` nối chuỗi, nên nếu smoke hỏng thì ba stage sau không chạy và
+không tốn tiền. Mọi stage đều `--resume`: kill giữa chừng rồi chạy lại là đi tiếp từ chỗ dở.
+
+Chỉnh số worker bằng biến môi trường (mặc định `ACDB_WORKERS=12`, `ACDB_PERM_WORKERS=24`,
+`ACDB_DRAWS=200`). Nếu server ít core thì đặt `ACDB_PERM_WORKERS` bằng số core thật.
+
+### Kết quả nằm ở đâu
+
+`ranker` và `perm` ghi thêm vào các thư mục **đã có** trong `study2_new/`; `sepset` tạo thư
+mục mới `study2b/`.
+
+| Đường dẫn | Nội dung |
+|---|---|
+| `study2_new/*/analysis/permutation.csv` | 1 dòng/(instance × model): `llm_f1`, `random_mean_f1`, `percentile` |
+| `study2_new/*/analysis/permutation_draws.csv` | cả 200 draw, để vẽ null histogram |
+| `study2_new/*/analysis/edit_audit.csv` | thêm cột `add_spouse`, `add_other`, `chance_spouse` |
+| `study2_new/*_fix/episodes.csv` | thêm arm `probe_stat_edits`, `probe_true_skeleton` |
+| `study2_new/semantic*/episodes.csv` | như trên (câu hỏi Sachs) |
+| `study2b/sepset_n60/`, `study2b/sepset_main/` | A/B prompt sai vs prompt đúng, cột `repair_evidence` |
+
+### Kéo về máy local
+
+```bash
+# trên máy local, trong thư mục repo
+rsync -av --exclude='checkpoint.json' \
+    <user>@<server>:~/Active-Causal-Discovery-Bench/study2b/ ./study2b/
+
+rsync -av --include='*/' --include='analysis/***' --include='episodes.csv' \
+    --include='run_manifest.json' --include='events.jsonl' --exclude='*' \
+    <user>@<server>:~/Active-Causal-Discovery-Bench/study2_new/ ./study2_new/
+```
+
+`events.jsonl` của `study2b` cần giữ lại (chứa proposal của prompt đúng, dùng để audit lại
+mà không phải gọi model). Các file `checkpoint.json` thì bỏ được.
+
+### Kiểm tra nhanh sau khi kéo về
+
+```bash
+conda run -n acdb-active python -c "
+import pandas as pd, glob
+for f in sorted(glob.glob('study2_new/*/analysis/permutation.csv')):
+    d = pd.read_csv(f)
+    g = d.groupby('model_tag').agg(n=('llm_f1','size'), llm=('llm_f1','mean'),
+                                   rnd=('random_mean_f1','mean'), pct=('percentile','mean'))
+    g['delta'] = g.llm - g.rnd
+    print(f.split('/')[1]); print(g.round(4).to_string(), end='\n\n')
+"
+```
+
+Nếu cột `delta` dương và `pct` lệch rõ khỏi $0.5$ thì proposal của LLM **có** giá trị vượt
+số lượng edit của chính nó, và kết luận trung tâm của paper cần viết lại theo hướng đó.
+Nếu `pct` bám quanh $0.5$ thì kết luận hiện tại đứng vững và mạnh hơn hẳn.
+
 ### Ước lượng thời gian và chi phí
 
 Số episode là **đếm chính xác**. Thời gian/chi phí ngoại suy từ đo thật ở `d = 10`
