@@ -178,3 +178,16 @@ paper/rauma_neurips2026.pdf
 # from, drop the raw call traces and resume checkpoints.
 result/**/events.jsonl
 result/**/checkpoint.json
+
+# === NemChua (study 2): proposal-content controls + semantic study ===
+!scripts/check_models.py
+!scripts/make_nemchua_figures.py
+!scripts/nemchua_edit_audit.py
+!run_study2_semantic.py
+
+# study2/ results: same policy as study1/ — keep episode/step CSVs, manifests and
+# summaries, drop the resume checkpoints and the smoke runs. The raw call log stays:
+# the paper's edit-precision audit reads the proposals back out of it.
+study2/**/checkpoint.json
+study2/smoke/
+study2/semantic_smoke/
