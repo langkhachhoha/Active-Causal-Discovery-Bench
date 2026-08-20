@@ -23,6 +23,12 @@ MODEL_ALIASES = {
     "qwen": "qwen/qwen3-coder-30b-a3b-instruct",
     "gpt-4o-mini": "openai/gpt-4o-mini-2024-07-18",
     "4o-mini": "openai/gpt-4o-mini-2024-07-18",
+    # the capability sweep: one alias per model so run scripts stay readable
+    "haiku-4.5": "anthropic/claude-haiku-4.5",
+    "sonnet-4.6": "anthropic/claude-sonnet-4.6",
+    "gemini-3-flash": "google/gemini-3-flash-preview",
+    "gpt-5.4-mini": "openai/gpt-5.4-mini",
+    "gpt-5.5": "openai/gpt-5.5",
 }
 
 _RETRYABLE_STATUS = {408, 409, 425, 429, 500, 502, 503, 504, 520, 522, 524}
@@ -167,6 +173,7 @@ class OpenRouterClient:
         timeout: int = 180,
         max_retries: int = 5,
         max_repairs: int = 2,
+        reasoning_effort: str = "",
         on_event: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> None:
         self.model = resolve_model(model)
@@ -176,6 +183,7 @@ class OpenRouterClient:
         self.timeout = int(timeout)
         self.max_retries = int(max_retries)
         self.max_repairs = int(max_repairs)
+        self.reasoning_effort = str(reasoning_effort or "")
         self.usage = UsageTotals()
         self._on_event = on_event
         self._session = requests.Session()
@@ -237,15 +245,20 @@ class OpenRouterClient:
         last_error = ""
 
         while True:
-            body = {
+            body: dict[str, Any] = {
                 "model": self.model,
                 "messages": messages,
                 "tools": [tool],
                 "tool_choice": {"type": "function", "function": {"name": tool_name}},
-                "temperature": self.temperature,
                 "max_tokens": self.max_tokens,
                 "usage": {"include": True},
             }
+            # A negative temperature means "send no temperature at all": some reasoning
+            # models reject any value but their own default.
+            if self.temperature >= 0.0:
+                body["temperature"] = self.temperature
+            if self.reasoning_effort:
+                body["reasoning"] = {"effort": self.reasoning_effort}
             started = time.perf_counter()
             try:
                 raw = self._post(body)

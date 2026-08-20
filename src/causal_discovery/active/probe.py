@@ -49,7 +49,13 @@ from causal_discovery.active.llm_client import OpenRouterClient
 from causal_discovery.active.mec import edge_marginals, enumerate_mec, mec_entropy
 from causal_discovery.active.pdag import intervention_value
 
-HYPOTHESIS_SOURCES = ("hybrid", "llm_repair", "llm_graphs", "hybrid_graphs", "pc_skeleton", "pc_mec", "random")
+HYPOTHESIS_SOURCES = (
+    "hybrid", "llm_repair", "llm_graphs", "hybrid_graphs", "pc_skeleton", "pc_mec", "random",
+    "oracle_repair", "noise_repair",
+)
+# sources whose skeleton edits come from somewhere other than an LLM; they share the
+# entire downstream pipeline with `llm_repair`, so they isolate the *content* of the edits.
+EDIT_SOURCES = ("llm_repair", "hybrid", "oracle_repair", "noise_repair")
 SELECT_RULES = ("eig", "random", "maxdeg")
 
 
@@ -257,6 +263,13 @@ REPAIR_SYSTEM_PROMPT = (
     "Call propose_skeleton_edits exactly once."
 )
 
+SEMANTIC_SUFFIX = (
+    "\nThe variables are named, and the names are meaningful: they come from {domain}. "
+    "Use what you know about this domain alongside the statistics — a pair that is "
+    "implausible on domain grounds is a good removal candidate even when the statistics "
+    "are borderline, and vice versa."
+)
+
 
 def _pairs_from(raw: Any, num_nodes: int, limit: int) -> list[tuple[int, int]]:
     out: list[tuple[int, int]] = []
@@ -284,14 +297,18 @@ def propose_skeleton_edits_llm(
     *,
     work_key: str,
     max_edits: int = 4,
+    var_names: tuple[str, ...] | None = None,
+    domain: str = "",
 ) -> tuple[list[tuple[int, int]], list[tuple[int, int]], dict[str, Any]]:
     """Ask the LLM which PC adjacencies to drop and which missing pairs to add."""
     num_nodes = int(obs.shape[1])
     skeleton = sorted(
         {canonical_undirected_edge(a, b) for a, b in pc_pdag.directed_edges} | set(pc_pdag.undirected_edges)
     )
+    labels = list(var_names) if var_names else [f"X{i}" for i in range(num_nodes)]
     payload = {
-        "variables": [f"X{i}" for i in range(num_nodes)],
+        "variables": [{"index": i, "name": labels[i]} for i in range(num_nodes)] if var_names
+                     else [f"X{i}" for i in range(num_nodes)],
         "statistics": observational_summary(obs),
         "pc_adjacencies": [list(e) for e in skeleton],
         "non_adjacent_pairs": [
@@ -304,8 +321,11 @@ def propose_skeleton_edits_llm(
             if not isinstance(data.get(field), list):
                 raise ValueError(f"{field} must be a list of [i, j] pairs (use [] for none)")
 
+    system_prompt = REPAIR_SYSTEM_PROMPT
+    if var_names and domain:
+        system_prompt += SEMANTIC_SUFFIX.format(domain=domain)
     response = client.call_tool(
-        system_prompt=REPAIR_SYSTEM_PROMPT,
+        system_prompt=system_prompt,
         user_prompt=(
             "Evidence JSON:\n"
             + json.dumps(payload, separators=(",", ":"), ensure_ascii=True)
@@ -449,19 +469,21 @@ def hypotheses_from_skeleton_search(
     max_dags_per_skeleton: int,
     keep: int,
     rng: np.random.Generator,
+    reserve_frac: float = 0.5,
 ) -> list[DAG]:
-    """Enumerate acyclic orientations of PC's skeleton and its LLM-edited variants.
+    """Enumerate acyclic orientations of PC's skeleton and its proposed variants.
 
-    Half of the budget is reserved for orientations of PC's *unedited* skeleton, so the
-    LLM's edits can only ever add hypotheses to the space, never crowd out the default
-    ones. Without this guard an over-eager proposer degrades the space instead of
-    enriching it, which is exactly what a mis-calibrated model does.
+    A `reserve_frac` share of the budget is reserved for orientations of PC's *unedited*
+    skeleton, so a proposal can only ever add hypotheses to the space, never crowd out the
+    default ones. This guard is what makes a wrong proposal cheap; `reserve_frac=0`
+    removes it and lets an over-eager proposer degrade the space instead of enriching it.
     """
     num_nodes = int(obs.shape[1])
     base = {canonical_undirected_edge(a, b) for a, b in pc_pdag.directed_edges} | set(pc_pdag.undirected_edges)
 
     base_dags = dags_from_skeleton(frozenset(base), num_nodes, max_dags_per_skeleton, rng)
-    reserved = top_by_bic(base_dags, obs, max(keep // 2, 1))
+    n_reserved = 0 if reserve_frac <= 0.0 else max(int(round(keep * reserve_frac)), 1)
+    reserved = top_by_bic(base_dags, obs, n_reserved) if n_reserved else []
     selected: dict[frozenset[tuple[int, int]], DAG] = {dag.edges: dag for dag in reserved}
 
     edited: dict[frozenset[tuple[int, int]], DAG] = {}
@@ -477,6 +499,47 @@ def hypotheses_from_skeleton_search(
             break
         selected.setdefault(dag.edges, dag)
     return list(selected.values())
+
+
+def oracle_skeleton_edits(
+    pc_pdag: CPDAG, true_dag: DAG, max_edits: int
+) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+    """The edits a perfect proposer would make: exactly PC's skeleton errors.
+
+    This is the ceiling of the proposal channel — it says how much accuracy is still on
+    the table for a better proposer, holding the rest of the pipeline fixed.
+    """
+    base = {canonical_undirected_edge(a, b) for a, b in pc_pdag.directed_edges} | set(pc_pdag.undirected_edges)
+    truth = {canonical_undirected_edge(a, b) for a, b in true_dag.edges}
+    return sorted(base - truth)[:max_edits], sorted(truth - base)[:max_edits]
+
+
+def noise_skeleton_edits(
+    pc_pdag: CPDAG,
+    num_nodes: int,
+    n_remove: int,
+    n_add: int,
+    rng: np.random.Generator,
+) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+    """Edits drawn uniformly at random, at a rate matched to the LLM's.
+
+    The control for "does the *content* of the proposal matter, or only the fact that the
+    space got wider?". Every downstream stage is identical to the LLM arm.
+    """
+    base = sorted(
+        {canonical_undirected_edge(a, b) for a, b in pc_pdag.directed_edges} | set(pc_pdag.undirected_edges)
+    )
+    base_set = set(base)
+    non_adjacent = [
+        (i, j) for i in range(num_nodes) for j in range(i + 1, num_nodes) if (i, j) not in base_set
+    ]
+    remove = [base[i] for i in rng.choice(len(base), size=min(n_remove, len(base)), replace=False)] if base else []
+    add = (
+        [non_adjacent[i] for i in rng.choice(len(non_adjacent), size=min(n_add, len(non_adjacent)), replace=False)]
+        if non_adjacent
+        else []
+    )
+    return sorted(remove), sorted(add)
 
 
 def hypotheses_from_mec(cpdag: CPDAG, max_members: int, rng: np.random.Generator) -> list[DAG]:
@@ -669,6 +732,11 @@ def run_probe_episode(
     max_skeleton_edits: int = 4,
     max_skeleton_variants: int = 6,
     max_dags_per_skeleton: int = 1024,
+    reserve_frac: float = 0.5,
+    noise_edits_remove: int = 4,
+    noise_edits_add: int = 4,
+    var_names: tuple[str, ...] | None = None,
+    domain: str = "",
     proposal_cache: "ProposalCache | None" = None,
 ) -> EpisodeResult:
     """One PROBE (or PROBE-ablation) episode."""
@@ -705,20 +773,30 @@ def run_probe_episode(
     if hypothesis_source in {"llm_repair", "hybrid"}:
         if client is None:
             raise ValueError("hypothesis_source requires an OpenRouter client")
+        call = lambda: propose_skeleton_edits_llm(  # noqa: E731
+            client,
+            obs,
+            pc_pdag,
+            work_key=work_key,
+            max_edits=max_skeleton_edits,
+            var_names=var_names,
+            domain=domain,
+        )
         if proposal_cache is not None:
-            remove, add, repair_stats = proposal_cache.get_or_call(
-                lambda: propose_skeleton_edits_llm(
-                    client, obs, pc_pdag, work_key=work_key, max_edits=max_skeleton_edits
-                ),
-                client=client,
-            )
+            remove, add, repair_stats = proposal_cache.get_or_call(call, client=client)
         else:
-            remove, add, repair_stats = propose_skeleton_edits_llm(
-                client, obs, pc_pdag, work_key=work_key, max_edits=max_skeleton_edits
-            )
+            remove, add, repair_stats = call()
         propose_stats.update(repair_stats)
+    elif hypothesis_source == "oracle_repair":
+        remove, add = oracle_skeleton_edits(pc_pdag, true_dag, max_skeleton_edits)
+        propose_stats.update({"repair_remove": len(remove), "repair_add": len(add)})
+    elif hypothesis_source == "noise_repair":
+        remove, add = noise_skeleton_edits(
+            pc_pdag, num_nodes, noise_edits_remove, noise_edits_add, rng
+        )
+        propose_stats.update({"repair_remove": len(remove), "repair_add": len(add)})
 
-    if hypothesis_source in {"llm_repair", "hybrid", "pc_skeleton"}:
+    if hypothesis_source in {"llm_repair", "hybrid", "pc_skeleton", "oracle_repair", "noise_repair"}:
         hypotheses.extend(
             hypotheses_from_skeleton_search(
                 obs,
@@ -729,6 +807,7 @@ def run_probe_episode(
                 max_dags_per_skeleton=max_dags_per_skeleton,
                 keep=max_hypotheses,
                 rng=rng,
+                reserve_frac=reserve_frac,
             )
         )
     n_from_llm = len(hypotheses) if hypothesis_source in {"llm_repair", "llm_graphs", "hybrid", "hybrid_graphs"} else 0
@@ -832,6 +911,13 @@ def run_probe_episode(
         "pc_skeleton_f1_ceiling": round(skeleton_ceiling_f1(pc_pdag, true_dag), 6),
         "pc_undirected_edges": pc_pdag.num_undirected_edges,
         "pc_directed_edges": pc_pdag.num_directed_edges,
+        "reserve_frac": reserve_frac,
+        "edits_correct_remove": sum(
+            1 for e in remove if e not in {canonical_undirected_edge(a, b) for a, b in true_dag.edges}
+        ),
+        "edits_correct_add": sum(
+            1 for e in add if e in {canonical_undirected_edge(a, b) for a, b in true_dag.edges}
+        ),
     }
     metrics.update(propose_stats)
     return EpisodeResult(metrics=metrics, steps=steps)
@@ -878,6 +964,16 @@ def run_pc_greedy_episode(*, instance, runtime_seed: int, alpha: float, meek: bo
             pdag, resolved = orient_from_intervention(before, target, obs, int_data)
         else:
             pdag, resolved = _orient_no_closure(before, target, obs, int_data)
+        # score the graph the arm *would* submit right now, so accuracy-per-experiment
+        # curves are directly comparable with the PROBE arms
+        interim = score_submission(
+            instance,
+            GraphSubmission(
+                num_nodes=pdag.num_nodes,
+                directed_edges=pdag.directed_edges,
+                undirected_edges=pdag.undirected_edges,
+            ),
+        )
         steps.append(
             {
                 "step": len(steps) + 1,
@@ -885,6 +981,7 @@ def run_pc_greedy_episode(*, instance, runtime_seed: int, alpha: float, meek: bo
                 "value": round(float(value), 4),
                 "edges_resolved": int(resolved),
                 "undirected_after": pdag.num_undirected_edges,
+                "map_directed_f1_after": round(float(interim.directed_f1), 5),
             }
         )
         if resolved == 0 and before.num_undirected_edges == pdag.num_undirected_edges:

@@ -16,6 +16,16 @@ Arms
     probe_mec_only      MEC of PC's CPDAG -- NO LLM
     probe_random_hyp    random DAGs -- space-quality floor
 
+  proposal-content ladder (same pipeline, edits of four different qualities)
+    probe_skel_only     no edits at all                       (the floor)
+    probe_random_edits  edits drawn uniformly at random       -- does CONTENT matter, or only width?
+    probe_oracle_edits  exactly PC's skeleton errors          (the ceiling of the proposal channel)
+
+  safety-net ablation (reserve_frac = 0 removes the guard that makes a wrong proposal free)
+    probe_noreserve                LLM edits, no reserved share for PC's own orientations
+    probe_random_edits_noreserve   random edits, no reserve
+    probe_oracle_edits_noreserve   oracle edits, no reserve
+
   decision-layer ablations (everything else held fixed)
     probe_random_sel    random experiment selection instead of EIG
     probe_maxdeg_sel    most-ambiguous-degree selection instead of EIG
@@ -98,6 +108,18 @@ NEMCHUA_ARMS: dict[str, dict[str, Any]] = {
     "probe_no_bic":     dict(hypothesis_source="hybrid",        select_rule="eig",    use_bic=False, use_update=True,  submit_mode="map"),
     "probe_no_update":  dict(hypothesis_source="hybrid",        select_rule="eig",    use_bic=True,  use_update=False, submit_mode="map"),
     "probe_marginal":   dict(hypothesis_source="hybrid",        select_rule="eig",    use_bic=True,  use_update=True,  submit_mode="marginal"),
+
+  # proposal-content ladder: the same pipeline fed edits of four different qualities.
+  # none -> random -> LLM -> oracle. This is what isolates the *content* of a proposal
+  # from the mere fact that the hypothesis space got wider.
+    "probe_random_edits": dict(hypothesis_source="noise_repair", select_rule="eig",    use_bic=True,  use_update=True,  submit_mode="map"),
+    "probe_oracle_edits": dict(hypothesis_source="oracle_repair",select_rule="eig",    use_bic=True,  use_update=True,  submit_mode="map"),
+
+  # safety-net ablation: `reserve_frac=0` lets a proposal crowd PC's own orientations out
+  # of the hypothesis space, so a wrong edit stops being free.
+    "probe_noreserve":  dict(hypothesis_source="llm_repair",    select_rule="eig",    use_bic=True,  use_update=True,  submit_mode="map", reserve_frac=0.0),
+    "probe_random_edits_noreserve": dict(hypothesis_source="noise_repair", select_rule="eig", use_bic=True, use_update=True, submit_mode="map", reserve_frac=0.0),
+    "probe_oracle_edits_noreserve": dict(hypothesis_source="oracle_repair", select_rule="eig", use_bic=True, use_update=True, submit_mode="map", reserve_frac=0.0),
 }
 
 BASELINE_ARMS = ("oracle", "pc_greedy", "pc_greedy_meek", "llm_e2e")
@@ -106,6 +128,8 @@ DEFAULT_ARMS = (
     "probe", "probe_repair_only", "probe_llm_graphs", "probe_skel_only", "probe_mec_only",
     "probe_random_hyp", "probe_random_sel", "probe_maxdeg_sel", "probe_no_bic",
     "probe_no_update", "probe_marginal",
+    "probe_random_edits", "probe_oracle_edits", "probe_noreserve",
+    "probe_random_edits_noreserve", "probe_oracle_edits_noreserve",
 )
 
 _LLM_SOURCES = {"llm_repair", "llm_graphs", "hybrid", "hybrid_graphs"}
@@ -124,6 +148,7 @@ EPISODE_COLUMNS = [
     "proposed_raw", "proposed_valid_unique", "propose_repairs", "propose_rounds",
     "repair_remove", "repair_add", "propose_cached",
     "pc_skeleton_f1_ceiling", "pc_undirected_edges", "pc_directed_edges",
+    "reserve_frac", "edits_correct_remove", "edits_correct_add",
     "llm_calls", "llm_failed_calls", "llm_repair_calls", "prompt_tokens",
     "completion_tokens", "cached_tokens", "total_tokens", "cost_usd", "llm_latency_sec",
 ]
@@ -142,6 +167,7 @@ SUMMARY_METRICS = [
     "entropy_final_nats", "map_weight_final", "proposed_raw", "proposed_valid_unique",
     "pc_skeleton_f1_ceiling", "prompt_tokens", "completion_tokens", "total_tokens",
     "cost_usd", "llm_calls", "llm_repair_calls", "wall_sec", "repair_remove", "repair_add",
+    "edits_correct_remove", "edits_correct_add",
 ]
 
 
@@ -178,12 +204,19 @@ def parse_args() -> argparse.Namespace:
                              "-1 keeps each level's default of 1, 0 gives a tight budget")
     parser.add_argument("--no-skeleton-hint", action="store_true", help="hide the PC graph from the proposer")
     parser.add_argument("--max-skeleton-edits", type=int, default=4)
+    parser.add_argument("--reserve-frac", type=float, default=0.5,
+                        help="share of the hypothesis budget reserved for orientations of PC's "
+                             "unedited skeleton; 0 removes the guard that makes a wrong proposal free")
+    parser.add_argument("--noise-edits-remove", type=int, default=4)
+    parser.add_argument("--noise-edits-add", type=int, default=4)
     parser.add_argument("--max-skeleton-variants", type=int, default=6)
     parser.add_argument("--max-dags-per-skeleton", type=int, default=1024)
     parser.add_argument("--e2e-max-steps", type=int, default=12)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-tokens", type=int, default=4000)
     parser.add_argument("--max-repairs", type=int, default=2)
+    parser.add_argument("--reasoning-effort", default="",
+                        help="OpenRouter reasoning effort (low/medium/high); empty leaves it to the provider")
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--retry-failed", action="store_true")
@@ -320,6 +353,7 @@ def main() -> int:
                     temperature=args.temperature,
                     max_tokens=args.max_tokens,
                     max_repairs=args.max_repairs,
+                    reasoning_effort=args.reasoning_effort,
                     on_event=lambda event, payload: trace.log(event, {"key": item.key, **payload}),
                 )
 
@@ -347,6 +381,8 @@ def main() -> int:
                     cache_key = (item.level_id, item.seed, item.model)
                     with cache_lock:
                         cache = proposal_caches.setdefault(cache_key, ProposalCache())
+                arm_cfg = dict(NEMCHUA_ARMS[item.arm])
+                reserve_frac = float(arm_cfg.pop("reserve_frac", args.reserve_frac))
                 result = run_probe_episode(
                     instance=instance,
                     proposal_cache=cache,
@@ -362,7 +398,10 @@ def main() -> int:
                     max_skeleton_edits=args.max_skeleton_edits,
                     max_skeleton_variants=args.max_skeleton_variants,
                     max_dags_per_skeleton=args.max_dags_per_skeleton,
-                    **NEMCHUA_ARMS[item.arm],
+                    reserve_frac=reserve_frac,
+                    noise_edits_remove=args.noise_edits_remove,
+                    noise_edits_add=args.noise_edits_add,
+                    **arm_cfg,
                 )
 
             row.update(result.metrics)

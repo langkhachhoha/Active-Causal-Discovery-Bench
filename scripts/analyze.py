@@ -240,6 +240,11 @@ HYPOTHESIS_SOURCE = {
     "probe_skel_only": "pc_skeleton (no LLM)",
     "probe_mec_only": "pc_mec (no LLM)",
     "probe_random_hyp": "random (no LLM)",
+    "probe_random_edits": "random edits (no LLM)",
+    "probe_oracle_edits": "oracle edits (no LLM)",
+    "probe_noreserve": "llm_repair, no guard",
+    "probe_random_edits_noreserve": "random edits, no guard",
+    "probe_oracle_edits_noreserve": "oracle edits, no guard",
 }
 
 
@@ -275,16 +280,14 @@ def analyze_study2(df: pd.DataFrame, report: Report) -> None:
     )
 
     ablations = [a for a in ("probe", "probe_random_sel", "probe_maxdeg_sel", "probe_no_bic",
-                            "probe_no_update", "probe_marginal") if a in set(df["arm"])]
-    report.table(
-        "t3_decision_layer",
-        "Table 3 — decision-layer ablations (hypothesis space held fixed)",
-        fmt(
-            summarise(df[df["arm"].isin(ablations)], ["arm", "model_tag"],
-                      QUALITY + ["interventions_used", "map_weight_final", "entropy_final_nats"]),
-            QUALITY + ["interventions_used", "map_weight_final", "entropy_final_nats"],
-        ),
-    )
+                            "probe_no_update", "probe_marginal", "probe_noreserve") if a in set(df["arm"])]
+    if ablations:
+        columns = QUALITY + ["interventions_used", "map_weight_final", "entropy_final_nats"]
+        report.table(
+            "t3_decision_layer",
+            "Table 3 — decision-layer ablations (hypothesis space held fixed)",
+            fmt(summarise(df[df["arm"].isin(ablations)], ["arm", "model_tag"], columns), columns),
+        )
 
     report.table(
         "t4_by_level",
