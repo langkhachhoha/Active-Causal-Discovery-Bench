@@ -8,6 +8,7 @@
 \usepackage{hyperref}
 \usepackage{url}
 \usepackage{booktabs}
+\usepackage{multirow}
 \usepackage{amsfonts}
 \usepackage{amsmath}
 \usepackage{amssymb}
@@ -59,7 +60,9 @@ closed-form likelihood updates the belief. It works well: $0.956$ directed-edge 
 $0.874$ for the strongest classical active baseline ($+0.082$, $p{=}0.0002$, $80$ paired
 instances) and $0.000$--$0.202$ for the same models run end-to-end, at one LLM call and $30\times$
 fewer tokens. Then we replace the model with a control that proposes edits uniformly at random,
-and the gap disappears: $0.951$ against $0.956$ ($p{=}0.68$). Across five proposers spanning a
+and the gap disappears: $0.951$ against $0.956$ ($p{=}0.68$). The advantage over the classical
+baseline is also narrower than the headline suggests: it is concentrated on the graph size where
+the estimator is weakest, falling to $+0.017$--$+0.030$ once that size is excluded. Across five proposers spanning a
 $4.2\times$ range in how often their edits are correct ($7.9\%$ to $32.8\%$), downstream accuracy
 moves by $0.026$ and does not order the models the way proposal quality does. What is load-bearing
 is the scaffolding: the Bayesian update is worth $0.29$ F1, and a guard that reserves part of the
@@ -281,9 +284,19 @@ $+0.079$, $p{=}3.7\times10^{-5}$). Against the same models run end-to-end on the
 gap is $+0.956$ and $+0.750$: an unscaffolded \texttt{gpt-4o-mini} submits no correct arrow in any
 of $80$ episodes.
 
-Two contrasts inside the table matter more than the baselines. Asking the model for whole DAGs
-instead of edits costs $0.29$--$0.31$ F1, so the interface, not the model, decides whether a
-proposal is usable at all. And \nem{} does not win by spending more of its budget: it is ahead
+\paragraph{Where the advantage actually sits.}
+The headline pools four graph sizes and should not be read as a uniform gain. Broken out, the
+advantage over \texttt{PC+greedy+Meek} is $+0.28$ at $d{=}4$ and between $-0.03$ and $+0.05$ at
+$d \in \{6,8,10\}$; pooled over $d \ge 6$ it is $+0.017$ (n.s.) for \texttt{gpt-4o-mini} and
+$+0.030$ ($p{=}0.03$) for \texttt{qwen3-30b}. This tracks one variable: PC's skeleton F1 is
+$0.909$ at $d{=}4$ against $0.94$--$0.97$ at the larger sizes, and the true DAG lies in the class
+it estimates for only $30\%$ of $d{=}4$ instances. The system's advantage, like everything else in
+this paper, is concentrated where the statistical front-end is weakest; per-level numbers are in
+Appendix~\ref{app:scaling}.
+
+Two further contrasts matter more than the baselines. Asking the model for whole DAGs instead of
+edits costs $0.29$--$0.31$ F1, so the interface, not the model, decides whether a proposal is
+usable at all. And \nem{} does not win by spending more of its budget: it is ahead
 at every experiment count ($0.844$ against $0.804$ after one intervention, $0.939$ against
 $0.875$ after two), and passes what \texttt{PC+greedy+Meek} reaches with its entire budget on
 its second experiment (Figure~\ref{fig:main}(b)).
@@ -345,7 +358,11 @@ against $0.956$ and $0.953$ for the two language models: $+0.004$ $[-0.012,+0.02
 and $+0.002$ $[-0.021,+0.025]$, $p{=}0.90$. Both models beat the \emph{unedited} skeleton by a
 clear margin ($+0.054$, $p{=}0.001$; $+0.052$, $p{=}0.0005$) --- but so does random editing
 ($+0.050$, $p{=}0.002$). Widening the neighbourhood of PC's skeleton is what produces the gain;
-which direction you widen it in barely registers.
+which direction you widen it in barely registers. The same $d{=}4$ concentration applies: pooled
+over $d \ge 6$, editing of any kind is worth $-0.005$ (random), $+0.001$ (\texttt{gpt-4o-mini})
+and $+0.014$ (\texttt{qwen3-30b}) over not editing. \emph{Perfect} edits, by contrast, are worth
+$+0.058$ ($p{<}0.001$) over that same range --- the channel stays open at every graph size, and
+neither the model nor the control walks through it.
 
 \paragraph{Four times better proposals, the same answer.}
 This is not an artifact of using cheap models. We ran five proposers on the same instances and
@@ -727,6 +744,275 @@ removals kept only if the pair is currently adjacent and additions only if it is
 that would create a cycle discarded. Malformed tool calls are re-prompted at most twice. The audit
 in Section~\ref{sec:credit} scores edits \emph{after} sanitization, so it measures what the system
 acted on.
+
+\section{What each proposer actually proposes}
+\label{app:edits}
+
+Aggregate precision hides the shape of the behaviour. Figure~\ref{fig:a1} and
+Table~\ref{tab:decomp} break each proposer's edits into removals and additions and score each kind
+against its own chance rate, since a removal is drawn from PC's adjacency set and an addition from
+its complement --- two very different base rates.
+
+The pattern is consistent and, we think, the single most interpretable result about proposal
+quality in this paper: \textbf{the better proposers propose less}. \texttt{gpt-4o-mini} makes
+$6.4$ edits per instance and is right $7.9\%$ of the time; \texttt{gemini-3-flash} makes $3.0$ and
+is right $32.8\%$ of the time. The relationship across the five models is monotone
+(Figure~\ref{fig:a1}(c)). Most of the difference is restraint about \emph{removals}: PC invents
+only about $0.1$ spurious adjacency per instance, so almost every removal is a mistake, and the
+weak models propose $3.3$--$3.7$ of them while \texttt{gemini-3-flash} proposes $0.4$. On the
+additions, where there really are about $1.75$ missing edges to find, every model is above chance
+and the spread is smaller ($1.6\times$ to $3.9\times$).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{nemchua_a1_edits.pdf}
+\caption{Proposal behaviour at $n_{\mathrm{obs}}{=}60$, $60$ instances per model. (a) Volume and
+composition against the number of adjacencies PC actually missed. (b) Precision of each kind of
+edit against the chance rate for that kind. (c) The two are strongly and negatively related.}
+\label{fig:a1}
+\end{figure}
+
+\begin{table}[h]
+\caption{Edit decomposition, $n_{\mathrm{obs}}{=}60$. ``Chance'' is the rate an editor drawing
+uniformly from the same set would achieve: PC's spurious adjacencies as a share of its adjacency
+set, and its missed adjacencies as a share of the non-adjacent pairs. ``Recall'' is the share of
+PC's missed adjacencies the model proposed.}
+\label{tab:decomp}
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{lcccccccc}
+\toprule
+& \multicolumn{3}{c}{removals} & \multicolumn{3}{c}{additions} & \multicolumn{2}{c}{overall} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-9}
+Model & per inst. & correct & chance & per inst. & correct & chance & recall & correct \\
+\midrule
+gpt-4o-mini    & $3.68$ & $0.032$ & $0.035$ & $2.67$ & $0.144$ & $0.083$ & $0.22$ & $0.079$ \\
+qwen3-30b      & $3.25$ & $0.036$ & $0.035$ & $3.52$ & $0.137$ & $0.083$ & $0.28$ & $0.089$ \\
+gpt-5.4-mini   & $2.30$ & $0.051$ & $0.035$ & $2.92$ & $0.217$ & $0.083$ & $0.36$ & $0.144$ \\
+haiku-4.5      & $1.68$ & $0.069$ & $0.035$ & $2.12$ & $0.307$ & $0.083$ & $0.37$ & $0.202$ \\
+gemini-3-flash & $0.40$ & $0.333$ & $0.035$ & $2.55$ & $0.327$ & $0.083$ & $0.48$ & $0.328$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Where the signal stops}
+\label{app:chain}
+
+Section~\ref{sec:credit} claims that proposal quality propagates part-way and then stops.
+Figure~\ref{fig:a2} shows all five links. Precision, recall of PC's misses, and the rate at which
+the true DAG enters the candidate set all improve with the proposer. The best F1 \emph{available
+in} the candidate set improves only slightly, and achieved F1 does not order the models at all.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{nemchua_a2_chain.pdf}
+\caption{The five measurable links from proposal to answer, at $n_{\mathrm{obs}}{=}60$; models
+ordered by edit precision. Dashed line is the no-edit arm. Note the changing $y$ scales: the
+first three panels span a factor of four, the last two a few percent.}
+\label{fig:a2}
+\end{figure}
+
+\begin{table}[h]
+\caption{The five proposers in full. $\Delta$ columns are paired differences against the no-edit
+and random-edit arms on the same instances; ``LLM-graphs'' is the same model asked for whole DAGs
+instead of edits. $60$ instances per cell ($d \in \{6,8,10\}$).}
+\label{tab:models}
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{lccccccc}
+\toprule
+Model & edits correct & \nem{} F1 & $\Delta$ no edits & $\Delta$ random & LLM-graphs & tokens \\
+\midrule
+\multicolumn{7}{l}{\emph{$n_{\mathrm{obs}} = 60$; no edits $0.818$, random $0.830$, perfect $0.988$}}\\
+gpt-4o-mini    & $0.079$ & $0.820 \pm 0.042$ & $+0.002$ & $-0.010$ & $0.582$ & $1{,}254$ \\
+qwen3-30b      & $0.089$ & $0.832 \pm 0.037$ & $+0.014$ & $+0.002$ & $0.599$ & $2{,}115$ \\
+gpt-5.4-mini   & $0.144$ & $0.846 \pm 0.036$ & $+0.029^{**}$ & $+0.017$ & $0.648$ & $1{,}366$ \\
+haiku-4.5      & $0.202$ & $0.837 \pm 0.036$ & $+0.020^{*}$ & $+0.007$ & $0.671$ & $2{,}138$ \\
+gemini-3-flash & $0.328$ & $0.827 \pm 0.037$ & $+0.009$ & $-0.003$ & $0.668$ & $1{,}560$ \\
+\midrule
+\multicolumn{7}{l}{\emph{$n_{\mathrm{obs}} = 300$; no edits $0.929$, random $0.929$, perfect $0.995$}}\\
+gpt-4o-mini    & $0.037$ & $0.950 \pm 0.020$ & $+0.021$ & $+0.021$ & $0.712$ & $1{,}255$ \\
+qwen3-30b      & $0.031$ & $0.937 \pm 0.026$ & $+0.008$ & $+0.008$ & $0.742$ & $2{,}061$ \\
+gpt-5.4-mini   & $0.059$ & $0.939 \pm 0.027$ & $+0.010$ & $+0.009$ & $0.818$ & $1{,}355$ \\
+haiku-4.5      & $0.068$ & $0.943 \pm 0.025$ & $+0.014$ & $+0.013$ & $0.824$ & $2{,}154$ \\
+gemini-3-flash & $0.126$ & $0.925 \pm 0.035$ & $-0.004$ & $-0.005$ & $0.847$ & $1{,}534$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The whole-graph column is worth a separate note. It is the one place where proposal quality does
+order the models --- $0.582$ to $0.671$ at $n_{\mathrm{obs}}{=}60$ and $0.712$ to $0.847$ at
+$300$, monotone in the same ranking --- and every value is far below what the same model achieves
+through the edit interface. When the model's output \emph{is} the candidate set rather than a
+perturbation of a statistical estimate, model quality starts to matter and the absolute result
+gets much worse. That is the trade the architecture makes.
+
+\section{The semantic study in full}
+\label{app:semantic}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{nemchua_a3_semantic.pdf}
+\caption{Named against anonymized variables at $n_{\mathrm{obs}}{=}60$, $12$ parameterizations per
+structure. (a) Pooled over the five proposers, per published structure. (b) Pooled over the five
+structures, per proposer.}
+\label{fig:a3}
+\end{figure}
+
+\begin{table}[h]
+\caption{Per-structure results at $n_{\mathrm{obs}}{=}60$, pooled over the five proposers. The
+naming effect is largest on the two everyday-knowledge domains and absent on the specialist one.}
+\label{tab:semantic}
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{lccccccccc}
+\toprule
+& & & \multicolumn{3}{c}{no-model arms} & \multicolumn{2}{c}{edits correct} & \multicolumn{2}{c}{\nem{} F1} \\
+\cmidrule(lr){4-6}\cmidrule(lr){7-8}\cmidrule(lr){9-10}
+Structure & $d$ & $|E|$ & PC skel. & no edits & perfect & anon. & named & anon. & named \\
+\midrule
+cancer     & $5$  & $4$  & $0.721$ & $0.721$ & $0.991$ & $0.183$ & $0.250$ & $0.773$ & $0.813$ \\
+earthquake & $5$  & $4$  & $0.721$ & $0.721$ & $0.991$ & $0.180$ & $0.296$ & $0.756$ & $0.854$ \\
+survey     & $6$  & $6$  & $0.752$ & $0.668$ & $1.000$ & $0.197$ & $0.226$ & $0.705$ & $0.673$ \\
+asia       & $8$  & $8$  & $0.783$ & $0.760$ & $1.000$ & $0.213$ & $0.220$ & $0.762$ & $0.783$ \\
+sachs      & $11$ & $17$ & $0.617$ & $0.391$ & $0.487$ & $0.333$ & $0.326$ & $0.410$ & $0.403$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two observations the main text has no room for. First, the naming effect is not uniform across
+domains: it is largest on \texttt{earthquake} ($0.180 \to 0.296$) and \texttt{cancer}
+($0.183 \to 0.250$), whose variables are everyday concepts, and absent on \texttt{sachs}
+($0.333 \to 0.326$), whose variables are signalling proteins. Whatever the models are using, it
+looks like common-sense knowledge rather than domain expertise. Second, \texttt{sachs} is the one
+structure where even perfect edits cannot rescue the pipeline ($0.487$): with $17$ edges on $11$
+nodes the orientation space must be sampled rather than enumerated, so the candidate set misses
+the truth regardless of the skeleton. It is a useful illustration of the scalability limit in
+Appendix~\ref{app:limitations}, and we exclude no data on its account.
+
+\section{Scaling, and the full ladder}
+\label{app:scaling}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{nemchua_a4_ladder.pdf}
+\caption{Every arm across the two axes we vary. (a) Observational sample size at $d \in \{6,8\}$.
+(b) Graph size at $n_{\mathrm{obs}}{=}300$. Perfect edits are near-flat on both axes; everything
+else rises with the strength of the statistical front-end.}
+\label{fig:a4}
+\end{figure}
+
+\begin{table}[h]
+\caption{Per-level means from the main run, $20$ instances per cell. The edit channel pays off at
+$d{=}4$, where PC's skeleton is weakest, and is flat elsewhere --- for the random editor and the
+language models alike. Perfect edits gain at every size.}
+\label{tab:levels_full}
+\centering
+\small
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{lcccc}
+\toprule
+Arm & $d{=}4$ & $d{=}6$ & $d{=}8$ & $d{=}10$ \\
+\midrule
+PC skeleton F1 (front-end quality) & $0.909$ & $0.973$ & $0.967$ & $0.940$ \\
+truth in PC's equivalence class    & $0.30$  & $0.65$  & $0.55$  & $0.30$ \\
+\midrule
+LLM end-to-end (qwen3-30b)   & $0.314$ & $0.211$ & $0.158$ & $0.127$ \\
+LLM writes the DAG (gpt-4o-mini) & $0.476$ & $0.690$ & $0.759$ & $0.671$ \\
+PC $+$ greedy $+$ \textsc{Meek} & $0.717$ & $0.922$ & $0.952$ & $0.903$ \\
+PC equivalence class          & $0.660$ & $0.939$ & $0.960$ & $0.914$ \\
+no edits                      & $0.780$ & $0.964$ & $0.947$ & $0.913$ \\
+random edits                  & $0.994$ & $0.942$ & $0.960$ & $0.909$ \\
+\nem{} (gpt-4o-mini)          & $0.994$ & $0.970$ & $0.926$ & $0.932$ \\
+\nem{} (qwen3-30b)            & $0.944$ & $0.987$ & $0.949$ & $0.931$ \\
+perfect edits                 & $0.994$ & $1.000$ & $1.000$ & $1.000$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{The guard, in full}
+\label{app:guard}
+
+Table~\ref{tab:guard} repeats the guard ablation in three regimes. The pattern is the same
+everywhere: with an imperfect proposal the guard is worth $0.03$--$0.06$ F1 and keeps the true DAG
+in the candidate set two to seven times more often; with a perfect proposal it is worth nothing,
+and if anything costs a hair by spending slots on orientations of a skeleton that did not need
+fixing.
+
+\begin{table}[h]
+\caption{Guard on against guard off, paired. ``Truth kept'' is the fraction of instances whose
+true DAG survives in the candidate set.}
+\label{tab:guard}
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{llcccc}
+\toprule
+Regime & Proposal & guard on & guard off & $\Delta$ & truth kept (on $\to$ off) \\
+\midrule
+\multirow{4}{*}{$n_{\mathrm{obs}}{=}60$}
+ & random         & $0.855$ & $0.814$ & $+0.041^{*}$ & $0.23 \to 0.12$ \\
+ & gpt-4o-mini    & $0.822$ & $0.791$ & $+0.031^{*}$ & $0.23 \to 0.12$ \\
+ & qwen3-30b      & $0.836$ & $0.823$ & $+0.013$     & $0.28 \to 0.20$ \\
+ & perfect        & $0.983$ & $0.991$ & $-0.008$     & $0.97 \to 1.00$ \\
+\midrule
+\multirow{4}{*}{$n_{\mathrm{obs}}{=}300$}
+ & random         & $0.937$ & $0.892$ & $+0.045^{***}$ & $0.68 \to 0.10$ \\
+ & gpt-4o-mini    & $0.963$ & $0.915$ & $+0.048^{***}$ & $0.72 \to 0.15$ \\
+ & qwen3-30b      & $0.948$ & $0.894$ & $+0.054^{***}$ & $0.70 \to 0.12$ \\
+ & perfect        & $0.996$ & $0.998$ & $-0.002$       & $0.97 \to 1.00$ \\
+\midrule
+\multirow{4}{*}{main run}
+ & random         & $0.951$ & $0.895$ & $+0.056^{***}$ & $0.74 \to 0.25$ \\
+ & gpt-4o-mini    & $0.956$ & $0.900$ & $+0.056^{***}$ & $0.69 \to 0.24$ \\
+ & qwen3-30b      & $0.953$ & $0.907$ & $+0.046^{***}$ & $0.68 \to 0.23$ \\
+ & perfect        & $0.999$ & $0.999$ & $\pm 0.000$    & $1.00 \to 1.00$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Edit budget and cost}
+\label{app:budget}
+
+\paragraph{How many edits should a proposer be allowed?}
+At $n_{\mathrm{obs}}{=}60$, raising the cap from two to four to eight edits does not buy a monotone
+improvement, and precision does not improve with the larger allowance --- the models simply
+propose more of the same quality. The random editor at four edits ($0.855$) beats every LLM
+setting.
+
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{lccccccc}
+\toprule
+& & & \multicolumn{2}{c}{gpt-4o-mini} & \multicolumn{2}{c}{qwen3-30b} \\
+\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+Cap & no edits & random & F1 & edits correct & F1 & edits correct \\
+\midrule
+2 & $0.828$ & $0.855$ & $0.818$ & $0.087$ & $0.827$ & $0.076$ \\
+4 & $0.828$ & $0.855$ & $0.852$ & $0.089$ & $0.838$ & $0.089$ \\
+8 & $0.828$ & $0.855$ & $0.842$ & $0.072$ & $0.831$ & $0.083$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Cost.}
+Figure~\ref{fig:a5} puts every model-using arm on one accuracy-against-tokens plot, with the two
+no-model arms as horizontal references. The end-to-end agent is a factor of $30$ more expensive
+than \nem{} and $0.75$--$0.96$ F1 worse; the whole-graph interface costs about the same as \nem{}
+and is $0.29$ worse; and the random editor, at zero tokens, is level with \nem{}.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.52\linewidth]{nemchua_a5_cost.pdf}
+\caption{Accuracy against tokens per episode on the main run. Circles are \texttt{gpt-4o-mini},
+squares \texttt{qwen3-30b}.}
+\label{fig:a5}
+\end{figure}
 
 \section{Additional results}
 \label{app:extra}

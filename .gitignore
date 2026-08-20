@@ -199,3 +199,4 @@ paper/nemchua_neurips2026.pdf
 study2_new/**/checkpoint.json
 study2_new/smoke/
 study2_new/semantic_smoke/
+!scripts/make_nemchua_appendix.py
