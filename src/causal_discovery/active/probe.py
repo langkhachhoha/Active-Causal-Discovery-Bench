@@ -290,6 +290,27 @@ def _pairs_from(raw: Any, num_nodes: int, limit: int) -> list[tuple[int, int]]:
     return out
 
 
+def filter_edits(
+    raw_remove: Any,
+    raw_add: Any,
+    pc_pdag: CPDAG,
+    num_nodes: int,
+    max_edits: int,
+) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+    """Keep only edits that are meaningful against this skeleton.
+
+    A removal must name an adjacency PC actually has, an addition a pair it does not.
+    Applying this is idempotent, so the replay path can run it over proposals a live call
+    already filtered and get the same answer.
+    """
+    skeleton = {canonical_undirected_edge(a, b) for a, b in pc_pdag.directed_edges} | set(
+        pc_pdag.undirected_edges
+    )
+    remove = [e for e in _pairs_from(raw_remove, num_nodes, max_edits) if e in skeleton]
+    add = [e for e in _pairs_from(raw_add, num_nodes, max_edits) if e not in skeleton]
+    return remove, add
+
+
 def propose_skeleton_edits_llm(
     client: OpenRouterClient,
     obs: np.ndarray,
@@ -336,9 +357,9 @@ def propose_skeleton_edits_llm(
         tag="repair",
         context={"work_key": work_key},
     )
-    skeleton_set = set(skeleton)
-    remove = [e for e in _pairs_from(response.payload.get("remove"), num_nodes, max_edits) if e in skeleton_set]
-    add = [e for e in _pairs_from(response.payload.get("add"), num_nodes, max_edits) if e not in skeleton_set]
+    remove, add = filter_edits(
+        response.payload.get("remove"), response.payload.get("add"), pc_pdag, num_nodes, max_edits
+    )
     stats = {
         "repair_remove": len(remove),
         "repair_add": len(add),
@@ -363,6 +384,23 @@ class ProposalCache:
         self._value: tuple[list, list, dict[str, Any]] | None = None
         self._usage: dict[str, int | float] | None = None
 
+    @property
+    def is_primed(self) -> bool:
+        with self._lock:
+            return self._value is not None
+
+    def prime(self, remove: Any, add: Any) -> None:
+        """Install a proposal recorded by an earlier run, so no call is made.
+
+        The stored value is the model's raw output; `run_probe_episode` applies the same
+        filtering it would apply to a live response, so a replayed episode sees exactly
+        what the original one saw.
+        """
+        with self._lock:
+            self._value = (list(remove), list(add), {"propose_repairs": 0, "replayed": 1})
+            self._usage = {k: 0 for k in
+                           ("llm_calls", "prompt_tokens", "completion_tokens", "total_tokens", "cost_usd")}
+
     def get_or_call(self, factory, *, client) -> tuple[list, list, dict[str, Any]]:
         with self._lock:
             if self._value is None:
@@ -377,7 +415,7 @@ class ProposalCache:
                 return list(remove), list(add), {**stats, "propose_cached": 0}
 
             remove, add, stats = self._value
-            if self._usage is not None:
+            if self._usage is not None and client is not None:
                 client.usage.calls += int(self._usage["llm_calls"])
                 client.usage.prompt_tokens += int(self._usage["prompt_tokens"])
                 client.usage.completion_tokens += int(self._usage["completion_tokens"])
@@ -392,24 +430,31 @@ def skeleton_variants(
     add: list[tuple[int, int]],
     max_variants: int,
 ) -> list[frozenset[tuple[int, int]]]:
-    """Base skeleton, each single edit, and the all-edits variant — de-duplicated."""
+    """Base skeleton, the all-edits variant, then single edits — de-duplicated.
+
+    Order matters because the list is truncated to `max_variants`. Listing all removals
+    before any addition penalises a proposer for being verbose rather than for being
+    wrong: a model that suggests four removals would lose most of its additions to the
+    cap, and additions are where a proposer's signal actually is (PC misses far more
+    edges than it invents). So the all-edits skeleton comes first --- it is the
+    hypothesis that the proposer is simply right --- and single edits are interleaved,
+    additions leading, so neither kind starves the other.
+    """
     variants: list[frozenset[tuple[int, int]]] = [frozenset(base)]
     seen = {frozenset(base)}
-    for edge in remove:
-        candidate = frozenset(base - {edge})
+
+    def offer(candidate: frozenset[tuple[int, int]]) -> None:
         if candidate not in seen:
             seen.add(candidate)
             variants.append(candidate)
-    for edge in add:
-        candidate = frozenset(base | {edge})
-        if candidate not in seen:
-            seen.add(candidate)
-            variants.append(candidate)
+
     if remove or add:
-        combined = frozenset((base - set(remove)) | set(add))
-        if combined not in seen:
-            seen.add(combined)
-            variants.append(combined)
+        offer(frozenset((base - set(remove)) | set(add)))
+    for i in range(max(len(add), len(remove))):
+        if i < len(add):
+            offer(frozenset(base | {add[i]}))
+        if i < len(remove):
+            offer(frozenset(base - {remove[i]}))
     return variants[:max_variants]
 
 
@@ -730,7 +775,7 @@ def run_probe_episode(
     eig_outcomes: int = 12,
     skeleton_hint: bool = True,
     max_skeleton_edits: int = 4,
-    max_skeleton_variants: int = 6,
+    max_skeleton_variants: int = 10,
     max_dags_per_skeleton: int = 1024,
     reserve_frac: float = 0.5,
     noise_edits_remove: int = 4,
@@ -786,7 +831,9 @@ def run_probe_episode(
             remove, add, repair_stats = proposal_cache.get_or_call(call, client=client)
         else:
             remove, add, repair_stats = call()
-        propose_stats.update(repair_stats)
+        # no-op for a live proposal, load-bearing for a replayed one
+        remove, add = filter_edits(remove, add, pc_pdag, num_nodes, max_skeleton_edits)
+        propose_stats.update({**repair_stats, "repair_remove": len(remove), "repair_add": len(add)})
     elif hypothesis_source == "oracle_repair":
         remove, add = oracle_skeleton_edits(pc_pdag, true_dag, max_skeleton_edits)
         propose_stats.update({"repair_remove": len(remove), "repair_add": len(add)})

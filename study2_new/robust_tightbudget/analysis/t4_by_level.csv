@@ -1,0 +1,37 @@
+arm,model_tag,level,n,directed_f1,truth_in_hypotheses
+oracle,none,0,20,1.000 ±0.000,—
+oracle,none,1,20,1.000 ±0.000,—
+oracle,none,2,20,1.000 ±0.000,—
+oracle,none,3,20,1.000 ±0.000,—
+pc_greedy_meek,none,0,20,0.696 ±0.125,—
+pc_greedy_meek,none,1,20,0.917 ±0.047,—
+pc_greedy_meek,none,2,20,0.913 ±0.059,—
+pc_greedy_meek,none,3,20,0.882 ±0.051,—
+probe,gpt-4o-mini-2024-07-18,0,20,0.911 ±0.069,0.850 ±0.161
+probe,gpt-4o-mini-2024-07-18,1,20,0.929 ±0.052,0.700 ±0.206
+probe,gpt-4o-mini-2024-07-18,2,20,0.919 ±0.043,0.550 ±0.224
+probe,gpt-4o-mini-2024-07-18,3,20,0.896 ±0.052,0.350 ±0.214
+probe,qwen3-coder-30b-a3b-instruct,0,20,0.916 ±0.064,0.750 ±0.195
+probe,qwen3-coder-30b-a3b-instruct,1,20,0.973 ±0.031,0.900 ±0.135
+probe,qwen3-coder-30b-a3b-instruct,2,20,0.903 ±0.067,0.600 ±0.220
+probe,qwen3-coder-30b-a3b-instruct,3,20,0.897 ±0.054,0.350 ±0.214
+probe_maxdeg_sel,gpt-4o-mini-2024-07-18,0,20,0.911 ±0.069,0.850 ±0.161
+probe_maxdeg_sel,gpt-4o-mini-2024-07-18,1,20,0.950 ±0.039,0.700 ±0.206
+probe_maxdeg_sel,gpt-4o-mini-2024-07-18,2,20,0.916 ±0.052,0.550 ±0.224
+probe_maxdeg_sel,gpt-4o-mini-2024-07-18,3,20,0.901 ±0.052,0.350 ±0.214
+probe_maxdeg_sel,qwen3-coder-30b-a3b-instruct,0,20,0.883 ±0.082,0.750 ±0.195
+probe_maxdeg_sel,qwen3-coder-30b-a3b-instruct,1,20,0.966 ±0.032,0.900 ±0.135
+probe_maxdeg_sel,qwen3-coder-30b-a3b-instruct,2,20,0.905 ±0.067,0.600 ±0.220
+probe_maxdeg_sel,qwen3-coder-30b-a3b-instruct,3,20,0.902 ±0.052,0.350 ±0.214
+probe_random_sel,gpt-4o-mini-2024-07-18,0,20,0.864 ±0.087,0.850 ±0.161
+probe_random_sel,gpt-4o-mini-2024-07-18,1,20,0.864 ±0.075,0.700 ±0.206
+probe_random_sel,gpt-4o-mini-2024-07-18,2,20,0.834 ±0.056,0.550 ±0.224
+probe_random_sel,gpt-4o-mini-2024-07-18,3,20,0.871 ±0.043,0.350 ±0.214
+probe_random_sel,qwen3-coder-30b-a3b-instruct,0,20,0.807 ±0.088,0.750 ±0.195
+probe_random_sel,qwen3-coder-30b-a3b-instruct,1,20,0.893 ±0.063,0.900 ±0.135
+probe_random_sel,qwen3-coder-30b-a3b-instruct,2,20,0.851 ±0.066,0.600 ±0.220
+probe_random_sel,qwen3-coder-30b-a3b-instruct,3,20,0.856 ±0.050,0.350 ±0.214
+probe_skel_only,none,0,20,0.766 ±0.114,0.350 ±0.214
+probe_skel_only,none,1,20,0.956 ±0.032,0.700 ±0.206
+probe_skel_only,none,2,20,0.901 ±0.065,0.550 ±0.224
+probe_skel_only,none,3,20,0.872 ±0.063,0.350 ±0.214

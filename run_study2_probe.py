@@ -209,7 +209,7 @@ def parse_args() -> argparse.Namespace:
                              "unedited skeleton; 0 removes the guard that makes a wrong proposal free")
     parser.add_argument("--noise-edits-remove", type=int, default=4)
     parser.add_argument("--noise-edits-add", type=int, default=4)
-    parser.add_argument("--max-skeleton-variants", type=int, default=6)
+    parser.add_argument("--max-skeleton-variants", type=int, default=10)
     parser.add_argument("--max-dags-per-skeleton", type=int, default=1024)
     parser.add_argument("--e2e-max-steps", type=int, default=12)
     parser.add_argument("--temperature", type=float, default=0.0)
@@ -220,10 +220,41 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--retry-failed", action="store_true")
+    parser.add_argument("--replay-proposals", default="",
+                        help="reuse the skeleton-repair proposals recorded in another run's "
+                             "events.jsonl instead of calling the model. Lets a change to the "
+                             "mechanical stages be tested on identical proposals, at no API cost")
     parser.add_argument("--no-share-proposals", action="store_true",
                         help="let each ablation arm draw its own skeleton-repair proposal")
     parser.add_argument("--limit", type=int, default=0)
     return parser.parse_args()
+
+
+def load_recorded_proposals(run_dir: Path) -> dict[tuple[int, int, str], tuple[list, list]]:
+    """Skeleton-repair proposals from a previous run, keyed by (level, seed, model alias)."""
+    events = run_dir / "events.jsonl"
+    if not events.exists():
+        raise SystemExit(f"--replay-proposals: no events.jsonl in {run_dir}")
+    out: dict[tuple[int, int, str], tuple[list, list]] = {}
+    for line in events.open(encoding="utf-8"):
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("event_type") != "llm_call:repair":
+            continue
+        payload = event["payload"]
+        key = payload.get("work_key") or payload.get("key")
+        if not key:
+            continue
+        level_tag, seed_tag, _arm, model = key.split("|")
+        body = payload.get("payload") or {}
+        out[(int(level_tag[1:]), int(seed_tag[1:]), model)] = (
+            body.get("remove") or [], body.get("add") or []
+        )
+    if not out:
+        raise SystemExit(f"--replay-proposals: {events} contains no repair proposals")
+    return out
 
 
 def make_work(arms: list[str], levels: list[int], seed_map: dict[int, list[int]], models: list[str]) -> list[Work]:
@@ -254,7 +285,10 @@ def main() -> int:
     manifest_path = out_dir / "run_manifest.json"
     checkpoint_path = out_dir / "checkpoint.json"
 
-    api_key = resolve_api_key(args.env_file) if any(a in LLM_ARMS for a in arms) else ""
+    needs_key = any(a in LLM_ARMS for a in arms) and not (
+        args.replay_proposals and all(a != "llm_e2e" and a != "probe_llm_graphs" for a in arms)
+    )
+    api_key = resolve_api_key(args.env_file) if needs_key else ""
 
     if args.resume and manifest_path.exists():
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -316,6 +350,9 @@ def main() -> int:
     checkpoint_state: dict[str, str] = dict(completed)
     instance_cache: dict[tuple[int, int], Any] = {}
     proposal_caches: dict[tuple[int, int, str], ProposalCache] = {}
+    recorded = load_recorded_proposals(Path(args.replay_proposals)) if args.replay_proposals else {}
+    if recorded:
+        print(f"[replay] {len(recorded)} recorded proposals from {args.replay_proposals}", flush=True)
 
     def get_instance(level_id: int, seed: int):
         key = (level_id, seed)
@@ -399,6 +436,12 @@ def main() -> int:
                     cache_key = (item.level_id, item.seed, item.model)
                     with cache_lock:
                         cache = proposal_caches.setdefault(cache_key, ProposalCache())
+                        # only the arms that would have called the model need a proposal
+                        if recorded and item.arm in LLM_ARMS and not cache.is_primed:
+                            prior = recorded.get(cache_key)
+                            if prior is None:
+                                raise KeyError(f"no recorded proposal for {cache_key}")
+                            cache.prime(*prior)
                 arm_cfg = dict(NEMCHUA_ARMS[item.arm])
                 reserve_frac = float(arm_cfg.pop("reserve_frac", args.reserve_frac))
                 result = run_probe_episode(

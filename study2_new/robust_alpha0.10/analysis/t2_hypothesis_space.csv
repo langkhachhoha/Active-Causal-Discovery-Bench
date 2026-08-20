@@ -1,0 +1,6 @@
+hypothesis_source,model_tag,n,directed_f1,truth_in_hypotheses,best_f1_in_hypotheses,n_hypotheses,truth_rank_final
+llm_repair + pc_mec,gpt-4o-mini-2024-07-18,40,0.857 ±0.037,0.200 ±0.126,0.898 ±0.026,48.000 ±0.000,-0.575 ±0.271
+llm_repair + pc_mec,qwen3-coder-30b-a3b-instruct,40,0.843 ±0.050,0.250 ±0.136,0.898 ±0.029,48.000 ±0.000,-0.450 ±0.313
+oracle edits (no LLM),none,40,0.983 ±0.019,0.975 ±0.049,0.998 ±0.004,48.000 ±0.000,1.050 ±0.156
+pc_skeleton (no LLM),none,40,0.839 ±0.039,0.125 ±0.104,0.878 ±0.027,41.000 ±3.469,-0.750 ±0.208
+random edits (no LLM),none,40,0.795 ±0.057,0.175 ±0.119,0.883 ±0.027,48.000 ±0.000,-0.625 ±0.260

@@ -58,6 +58,7 @@ from causal_discovery.active.named_graphs import (  # noqa: E402
     parse_graph_names,
 )
 from causal_discovery.active.probe import (  # noqa: E402
+    ProposalCache,
     run_oracle_episode,
     run_pc_greedy_episode,
     run_probe_episode,
@@ -90,6 +91,33 @@ class Work:
         return f"{self.graph}|s{self.seed}|{self.condition}|{self.arm}|{self.model or 'none'}"
 
 
+def load_recorded_proposals(run_dir: Path) -> dict[tuple[str, int, str, str], tuple[list, list]]:
+    """Proposals from a previous semantic run, keyed by (graph, seed, condition, model)."""
+    events = run_dir / "events.jsonl"
+    if not events.exists():
+        raise SystemExit(f"--replay-proposals: no events.jsonl in {run_dir}")
+    out: dict[tuple[str, int, str, str], tuple[list, list]] = {}
+    for line in events.open(encoding="utf-8"):
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("event_type") != "llm_call:repair":
+            continue
+        payload = event["payload"]
+        key = payload.get("work_key") or payload.get("key")
+        if not key:
+            continue
+        graph, seed_tag, condition, _arm, model = key.split("|")
+        body = payload.get("payload") or {}
+        out[(graph, int(seed_tag[1:]), condition, model)] = (
+            body.get("remove") or [], body.get("add") or []
+        )
+    if not out:
+        raise SystemExit(f"--replay-proposals: {events} contains no repair proposals")
+    return out
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--graphs", default=",".join(DEFAULT_GRAPHS))
@@ -106,7 +134,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-hypotheses", type=int, default=48)
     p.add_argument("--eig-outcomes", type=int, default=12)
     p.add_argument("--max-skeleton-edits", type=int, default=4)
-    p.add_argument("--max-skeleton-variants", type=int, default=6)
+    p.add_argument("--max-skeleton-variants", type=int, default=10)
     p.add_argument("--max-dags-per-skeleton", type=int, default=1024)
     p.add_argument("--reserve-frac", type=float, default=0.5)
     p.add_argument("--temperature", type=float, default=0.0)
@@ -117,6 +145,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--workers", type=int, default=6)
     p.add_argument("--resume", action="store_true")
     p.add_argument("--retry-failed", action="store_true")
+    p.add_argument("--replay-proposals", default="",
+                   help="reuse the proposals recorded in another semantic run's events.jsonl "
+                        "instead of calling the model (see run_study2_probe.py)")
     p.add_argument("--limit", type=int, default=0)
     return p.parse_args()
 
@@ -135,7 +166,10 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = out_dir / "run_manifest.json"
     checkpoint_path = out_dir / "checkpoint.json"
-    api_key = resolve_api_key(args.env_file) if any(a in LLM_ARMS for a in arms) else ""
+    recorded = load_recorded_proposals(Path(args.replay_proposals)) if args.replay_proposals else {}
+    if recorded:
+        print(f"[replay] {len(recorded)} recorded proposals from {args.replay_proposals}", flush=True)
+    api_key = resolve_api_key(args.env_file) if (any(a in LLM_ARMS for a in arms) and not recorded) else ""
 
     if args.resume and manifest_path.exists():
         run_id = str(json.loads(manifest_path.read_text(encoding="utf-8"))["run_id"])
@@ -239,8 +273,15 @@ def main() -> int:
             else:
                 arm_cfg = dict(NEMCHUA_ARMS[item.arm])
                 reserve_frac = float(arm_cfg.pop("reserve_frac", args.reserve_frac))
+                cache = None
+                if recorded and item.arm in LLM_ARMS:
+                    key = (item.graph, item.seed, item.condition, item.model)
+                    if key not in recorded:
+                        raise KeyError(f"no recorded proposal for {key}")
+                    cache = ProposalCache()
+                    cache.prime(*recorded[key])
                 result = run_probe_episode(
-                    instance=instance, proposal_cache=None, client=client,
+                    instance=instance, proposal_cache=cache, client=client,
                     runtime_seed=runtime_seed, work_key=item.key, alpha=args.alpha,
                     max_hypotheses=args.max_hypotheses, eig_outcomes=args.eig_outcomes,
                     max_skeleton_edits=args.max_skeleton_edits,

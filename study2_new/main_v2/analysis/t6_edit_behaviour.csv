@@ -1,0 +1,21 @@
+arm,model_tag,n,repair_remove,repair_add,directed_f1,best_f1_in_hypotheses
+probe,gpt-4o-mini-2024-07-18,80,3.400 ±0.196,2.112 ±0.283,0.953 ±0.017,0.961 ±0.014
+probe,qwen3-coder-30b-a3b-instruct,80,2.587 ±0.339,2.825 ±0.291,0.955 ±0.018,0.965 ±0.013
+probe_marginal,gpt-4o-mini-2024-07-18,80,3.400 ±0.196,2.112 ±0.283,0.952 ±0.018,0.961 ±0.014
+probe_marginal,qwen3-coder-30b-a3b-instruct,80,2.587 ±0.339,2.825 ±0.291,0.955 ±0.018,0.965 ±0.013
+probe_maxdeg_sel,gpt-4o-mini-2024-07-18,80,3.400 ±0.196,2.112 ±0.283,0.947 ±0.024,0.961 ±0.014
+probe_maxdeg_sel,qwen3-coder-30b-a3b-instruct,80,2.587 ±0.339,2.825 ±0.291,0.947 ±0.024,0.965 ±0.013
+probe_no_bic,gpt-4o-mini-2024-07-18,80,3.400 ±0.196,2.112 ±0.283,0.928 ±0.020,0.961 ±0.014
+probe_no_bic,qwen3-coder-30b-a3b-instruct,80,2.587 ±0.339,2.825 ±0.291,0.927 ±0.017,0.965 ±0.013
+probe_no_update,gpt-4o-mini-2024-07-18,80,3.400 ±0.196,2.112 ±0.283,0.674 ±0.053,0.961 ±0.014
+probe_no_update,qwen3-coder-30b-a3b-instruct,80,2.587 ±0.339,2.825 ±0.291,0.681 ±0.053,0.965 ±0.013
+probe_noreserve,gpt-4o-mini-2024-07-18,80,3.400 ±0.196,2.112 ±0.283,0.894 ±0.018,0.904 ±0.016
+probe_noreserve,qwen3-coder-30b-a3b-instruct,80,2.587 ±0.339,2.825 ±0.291,0.909 ±0.019,0.917 ±0.015
+probe_oracle_edits,none,80,0.113 ±0.078,0.537 ±0.139,0.996 ±0.006,0.997 ±0.005
+probe_oracle_edits_noreserve,none,80,0.113 ±0.078,0.537 ±0.139,0.996 ±0.006,0.997 ±0.005
+probe_random_edits,none,80,3.850 ±0.079,3.638 ±0.153,0.936 ±0.025,0.955 ±0.015
+probe_random_edits_noreserve,none,80,3.850 ±0.079,3.638 ±0.153,0.879 ±0.028,0.903 ±0.014
+probe_random_sel,gpt-4o-mini-2024-07-18,80,3.400 ±0.196,2.112 ±0.283,0.903 ±0.030,0.961 ±0.014
+probe_random_sel,qwen3-coder-30b-a3b-instruct,80,2.587 ±0.339,2.825 ±0.291,0.886 ±0.032,0.965 ±0.013
+probe_repair_only,gpt-4o-mini-2024-07-18,80,3.400 ±0.196,2.112 ±0.283,0.953 ±0.017,0.961 ±0.014
+probe_repair_only,qwen3-coder-30b-a3b-instruct,80,2.587 ±0.339,2.825 ±0.291,0.958 ±0.017,0.965 ±0.013

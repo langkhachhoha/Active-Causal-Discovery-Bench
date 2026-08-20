@@ -1,0 +1,15 @@
+arm,model_tag,level,n,directed_f1,truth_in_hypotheses
+oracle,none,1,20,1.000 ±0.000,—
+oracle,none,2,20,1.000 ±0.000,—
+pc_greedy_meek,none,1,20,0.738 ±0.090,—
+pc_greedy_meek,none,2,20,0.790 ±0.067,—
+probe,gpt-4o-mini-2024-07-18,1,20,0.886 ±0.044,0.300 ±0.206
+probe,gpt-4o-mini-2024-07-18,2,20,0.827 ±0.058,0.100 ±0.135
+probe,qwen3-coder-30b-a3b-instruct,1,20,0.845 ±0.079,0.400 ±0.220
+probe,qwen3-coder-30b-a3b-instruct,2,20,0.841 ±0.063,0.100 ±0.135
+probe_oracle_edits,none,1,20,0.978 ±0.028,0.950 ±0.098
+probe_oracle_edits,none,2,20,0.988 ±0.024,1.000 ±0.000
+probe_random_edits,none,1,20,0.765 ±0.092,0.200 ±0.180
+probe_random_edits,none,2,20,0.825 ±0.066,0.150 ±0.161
+probe_skel_only,none,1,20,0.847 ±0.058,0.200 ±0.180
+probe_skel_only,none,2,20,0.832 ±0.053,0.050 ±0.098

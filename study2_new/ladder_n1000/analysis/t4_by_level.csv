@@ -1,0 +1,21 @@
+arm,model_tag,level,n,directed_f1,truth_in_hypotheses
+oracle,none,1,20,1.000 ±0.000,—
+oracle,none,2,20,1.000 ±0.000,—
+pc_greedy_meek,none,1,20,0.896 ±0.066,—
+pc_greedy_meek,none,2,20,0.947 ±0.040,—
+probe,gpt-4o-mini-2024-07-18,1,20,0.903 ±0.079,0.700 ±0.206
+probe,gpt-4o-mini-2024-07-18,2,20,0.965 ±0.032,0.750 ±0.195
+probe,qwen3-coder-30b-a3b-instruct,1,20,0.958 ±0.039,0.750 ±0.195
+probe,qwen3-coder-30b-a3b-instruct,2,20,0.971 ±0.024,0.700 ±0.206
+probe_llm_graphs,gpt-4o-mini-2024-07-18,1,20,0.732 ±0.095,0.200 ±0.180
+probe_llm_graphs,gpt-4o-mini-2024-07-18,2,20,0.756 ±0.055,0.050 ±0.098
+probe_llm_graphs,qwen3-coder-30b-a3b-instruct,1,20,0.792 ±0.095,0.350 ±0.214
+probe_llm_graphs,qwen3-coder-30b-a3b-instruct,2,20,0.739 ±0.071,0.100 ±0.135
+probe_mec_only,none,1,20,0.913 ±0.062,0.650 ±0.214
+probe_mec_only,none,2,20,0.947 ±0.040,0.650 ±0.214
+probe_oracle_edits,none,1,20,1.000 ±0.000,1.000 ±0.000
+probe_oracle_edits,none,2,20,1.000 ±0.000,1.000 ±0.000
+probe_random_edits,none,1,20,0.952 ±0.036,0.700 ±0.206
+probe_random_edits,none,2,20,0.961 ±0.032,0.700 ±0.206
+probe_skel_only,none,1,20,0.922 ±0.072,0.700 ±0.206
+probe_skel_only,none,2,20,0.958 ±0.032,0.650 ±0.214

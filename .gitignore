@@ -193,3 +193,9 @@ study2/smoke/
 study2/semantic_smoke/
 paper/nemchua_neurips2026.pdf
 !paper/nemchua_numbers.py
+
+# study2_new/: the 20-seed re-run tree. Same policy as study2/ — keep episode/step CSVs,
+# manifests, summaries and the raw call log; drop resume checkpoints and the smoke runs.
+study2_new/**/checkpoint.json
+study2_new/smoke/
+study2_new/semantic_smoke/

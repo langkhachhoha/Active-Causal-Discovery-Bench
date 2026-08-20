@@ -1,0 +1,13 @@
+arm,model_tag,n,repair_remove,repair_add,directed_f1,best_f1_in_hypotheses
+probe,claude-haiku-4.5,60,1.750 ±0.178,1.917 ±0.215,0.943 ±0.025,0.960 ±0.017
+probe,gemini-3-flash-preview,60,0.433 ±0.164,2.217 ±0.302,0.937 ±0.029,0.964 ±0.016
+probe,gpt-4o-mini-2024-07-18,60,3.883 ±0.082,2.450 ±0.353,0.938 ±0.022,0.954 ±0.018
+probe,gpt-5.4-mini,60,2.550 ±0.321,2.567 ±0.303,0.948 ±0.021,0.961 ±0.017
+probe,qwen3-coder-30b-a3b-instruct,60,3.050 ±0.344,3.417 ±0.273,0.929 ±0.026,0.951 ±0.017
+probe_noreserve,claude-haiku-4.5,60,1.750 ±0.178,1.917 ±0.215,0.892 ±0.024,0.909 ±0.018
+probe_noreserve,gemini-3-flash-preview,60,0.433 ±0.164,2.217 ±0.302,0.880 ±0.031,0.913 ±0.021
+probe_noreserve,gpt-4o-mini-2024-07-18,60,3.883 ±0.082,2.450 ±0.353,0.889 ±0.020,0.900 ±0.017
+probe_noreserve,gpt-5.4-mini,60,2.550 ±0.321,2.567 ±0.303,0.894 ±0.028,0.910 ±0.022
+probe_noreserve,qwen3-coder-30b-a3b-instruct,60,3.050 ±0.344,3.417 ±0.273,0.882 ±0.024,0.899 ±0.016
+probe_oracle_edits,none,60,0.133 ±0.087,0.550 ±0.164,0.992 ±0.010,0.998 ±0.003
+probe_random_edits,none,60,4.000 ±0.000,4.000 ±0.000,0.920 ±0.030,0.947 ±0.019

@@ -1,0 +1,3 @@
+arm,model_tag,n,directed_f1,compelled_f1,skeleton_f1,dag_shd,interventions_used,map_weight_final,entropy_final_nats
+probe,gpt-4o-mini-2024-07-18,40,0.954 ±0.023,0.950 ±0.039,0.965 ±0.016,0.550 ±0.262,2.425 ±0.170,0.921 ±0.037,0.220 ±0.082
+probe,qwen3-coder-30b-a3b-instruct,40,0.938 ±0.034,0.934 ±0.050,0.959 ±0.018,0.675 ±0.317,2.575 ±0.155,0.892 ±0.050,0.320 ±0.118

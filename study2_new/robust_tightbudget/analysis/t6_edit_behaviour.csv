@@ -1,0 +1,7 @@
+arm,model_tag,n,repair_remove,repair_add,directed_f1,best_f1_in_hypotheses
+probe,gpt-4o-mini-2024-07-18,80,3.388 ±0.193,2.150 ±0.286,0.913 ±0.027,0.960 ±0.014
+probe,qwen3-coder-30b-a3b-instruct,80,2.625 ±0.328,2.987 ±0.295,0.922 ±0.028,0.964 ±0.013
+probe_maxdeg_sel,gpt-4o-mini-2024-07-18,80,3.388 ±0.193,2.150 ±0.286,0.919 ±0.027,0.960 ±0.014
+probe_maxdeg_sel,qwen3-coder-30b-a3b-instruct,80,2.625 ±0.328,2.987 ±0.295,0.914 ±0.031,0.964 ±0.013
+probe_random_sel,gpt-4o-mini-2024-07-18,80,3.388 ±0.193,2.150 ±0.286,0.858 ±0.033,0.960 ±0.014
+probe_random_sel,qwen3-coder-30b-a3b-instruct,80,2.625 ±0.328,2.987 ±0.295,0.852 ±0.034,0.964 ±0.013

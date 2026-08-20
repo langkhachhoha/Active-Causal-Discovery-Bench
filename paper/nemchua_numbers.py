@@ -14,19 +14,37 @@ import numpy as np, pandas as pd
 from scipy.stats import wilcoxon
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STUDY = os.path.join(ROOT, "study2")
+STUDY = os.path.join(ROOT, "study2_new")
 
 
 def pick(*names):
     for n in names:
-        if os.path.exists(os.path.join(STUDY, n, "episodes.csv")):
+        if os.path.exists(os.path.join(STUDY, n, "episodes.csv")) or \
+           os.path.exists(os.path.join(STUDY, f"{n}_fix", "episodes.csv")):
             return n
     return None
 
 
 def load(run):
-    d = pd.read_csv(os.path.join(STUDY, run, "episodes.csv"))
-    return d[d["status"] == "success"].copy()
+    """`<run>_fix` for every arm it re-ran, plus the arms only `<run>` has.
+
+    The corrected enumeration was replayed on the recorded proposals, so `_fix` is the
+    current method; arms it cannot touch (end-to-end, whole-graph proposer) come from the
+    original run unchanged.
+    """
+    frames = []
+    fix = os.path.join(STUDY, f"{run}_fix", "episodes.csv")
+    if os.path.exists(fix):
+        d = pd.read_csv(fix)
+        frames.append(d[d["status"] == "success"].copy())
+    base = os.path.join(STUDY, run, "episodes.csv")
+    if os.path.exists(base):
+        d = pd.read_csv(base)
+        d = d[d["status"] == "success"].copy()
+        if frames:
+            d = d[~d["arm"].isin(set(frames[0]["arm"]))]
+        frames.append(d)
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
 def ser(d, arm, model=None, metric="directed_f1"):
@@ -112,16 +130,23 @@ def main():
     for m in mods:
         for other in ("pc_greedy_meek", "pc_greedy", "probe_skel_only", "probe_mec_only",
                       "probe_llm_graphs", "llm_e2e", "probe_no_update", "probe_random_sel",
-                      "probe_maxdeg_sel", "probe_no_bic", "probe_repair_only", "probe_marginal"):
+                      "probe_maxdeg_sel", "probe_no_bic", "probe_repair_only", "probe_marginal",
+                      "probe_random_edits", "probe_oracle_edits", "probe_noreserve"):
             if other not in set(df["arm"]):
                 continue
             c = contrast(ser(df, "probe", m), ser(df, other, m))
             if c:
                 cons[f"probe[{m}] - {other}"] = c
-    for arm in ("probe_random_edits", "probe_oracle_edits"):
+    for arm in ("probe_random_edits", "probe_oracle_edits", "probe_random_edits_noreserve",
+                "probe_oracle_edits_noreserve", "probe_mec_only", "pc_greedy_meek"):
         c = contrast(ser(df, arm), ser(df, "probe_skel_only"))
         if c:
             cons[f"{arm} - probe_skel_only"] = c
+    for on, off in (("probe_random_edits", "probe_random_edits_noreserve"),
+                    ("probe_oracle_edits", "probe_oracle_edits_noreserve")):
+        c = contrast(ser(df, on), ser(df, off))
+        if c:
+            cons[f"guard: {on} - {off}"] = c
     out["main_contrasts"] = cons
     out["main_edit_audit"] = audit(MAIN)
 
@@ -149,6 +174,11 @@ def main():
             c = contrast(ser(d, arm), base)
             if c:
                 entry["contrasts"][f"{arm} - skel_only"] = c
+        rnd = ser(d, "probe_random_edits")
+        for m in sorted(x for x in d["model_tag"].unique() if x != "none"):
+            c = contrast(ser(d, "probe", m), rnd)
+            if c:
+                entry["contrasts"][f"probe[{m}] - random_edits"] = c
         ladder[n] = entry
     out["sample_size_ladder"] = ladder
 
@@ -198,16 +228,31 @@ def main():
         out["semantic"] = rec
 
     # capability sweep
-    for tag in ("models_n60", "models_n300"):
+    for tag in ("models_n60", "models_n300", "robust_tightbudget", "robust_alpha0.01",
+                "robust_alpha0.10", "robust_d12", "reserve_n60", "reserve_n300",
+                "edits_e2", "edits_e4", "edits_e8"):
         if not pick(tag):
             continue
         d = load(tag)
-        rec = {"audit": audit(tag), "gain_over_no_llm": {}, "arms": {}}
+        rec = {"audit": audit(tag), "gain_over_no_llm": {}, "gain_over_random": {},
+               "precision": {}, "arms": {}}
         base = ser(d, "probe_skel_only")
+        rnd = ser(d, "probe_random_edits")
+        need = {"repair_remove", "repair_add", "edits_correct_remove", "edits_correct_add"}
+        if need <= set(d.columns):
+            pr = d[d["arm"] == "probe"].dropna(subset=list(need))
+            for m, g in pr.groupby("model_tag"):
+                proposed = (g["repair_remove"] + g["repair_add"]).sum()
+                correct = (g["edits_correct_remove"] + g["edits_correct_add"]).sum()
+                rec["precision"][m] = dict(proposed=int(proposed), correct=int(correct),
+                                           precision=round(correct / max(proposed, 1), 4))
         for m in sorted(x for x in d["model_tag"].unique() if x != "none"):
             c = contrast(ser(d, "probe", m), base)
             if c:
                 rec["gain_over_no_llm"][m] = c
+            c = contrast(ser(d, "probe", m), rnd) if rnd else None
+            if c:
+                rec["gain_over_random"][m] = c
         for arm in sorted(d["arm"].unique()):
             sub = d[d["arm"] == arm]
             if (sub["model_tag"] != "none").any():
