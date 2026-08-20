@@ -1,0 +1,23 @@
+arm,model_tag,level,n,directed_f1,truth_in_hypotheses
+oracle,none,1,10,1.000 ±0.000,—
+oracle,none,2,10,1.000 ±0.000,—
+pc_greedy,none,1,10,0.909 ±0.065,—
+pc_greedy,none,2,10,0.779 ±0.113,—
+pc_greedy_meek,none,1,10,0.836 ±0.127,—
+pc_greedy_meek,none,2,10,0.772 ±0.116,—
+probe,gpt-4o-mini-2024-07-18,1,10,0.883 ±0.092,0.500 ±0.327
+probe,gpt-4o-mini-2024-07-18,2,10,0.857 ±0.048,0.100 ±0.196
+probe,qwen3-coder-30b-a3b-instruct,1,10,0.889 ±0.105,0.600 ±0.320
+probe,qwen3-coder-30b-a3b-instruct,2,10,0.832 ±0.087,0.200 ±0.261
+probe_llm_graphs,gpt-4o-mini-2024-07-18,1,10,0.612 ±0.115,0.000 ±0.000
+probe_llm_graphs,gpt-4o-mini-2024-07-18,2,10,0.588 ±0.091,0.000 ±0.000
+probe_llm_graphs,qwen3-coder-30b-a3b-instruct,1,10,0.650 ±0.139,0.200 ±0.261
+probe_llm_graphs,qwen3-coder-30b-a3b-instruct,2,10,0.631 ±0.095,0.000 ±0.000
+probe_mec_only,none,1,10,0.818 ±0.127,0.400 ±0.320
+probe_mec_only,none,2,10,0.745 ±0.129,0.100 ±0.196
+probe_repair_only,gpt-4o-mini-2024-07-18,1,10,0.883 ±0.092,0.500 ±0.327
+probe_repair_only,gpt-4o-mini-2024-07-18,2,10,0.868 ±0.048,0.100 ±0.196
+probe_repair_only,qwen3-coder-30b-a3b-instruct,1,10,0.889 ±0.105,0.600 ±0.320
+probe_repair_only,qwen3-coder-30b-a3b-instruct,2,10,0.832 ±0.087,0.200 ±0.261
+probe_skel_only,none,1,10,0.873 ±0.097,0.400 ±0.320
+probe_skel_only,none,2,10,0.848 ±0.075,0.200 ±0.261

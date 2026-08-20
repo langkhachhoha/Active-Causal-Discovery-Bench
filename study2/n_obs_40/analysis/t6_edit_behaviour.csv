@@ -1,0 +1,5 @@
+arm,model_tag,n,repair_remove,repair_add,directed_f1,best_f1_in_hypotheses
+probe,gpt-4o-mini-2024-07-18,20,3.250 ±0.345,2.500 ±0.659,0.795 ±0.054,0.831 ±0.041
+probe,qwen3-coder-30b-a3b-instruct,20,1.300 ±0.767,2.950 ±0.628,0.801 ±0.055,0.830 ±0.047
+probe_repair_only,gpt-4o-mini-2024-07-18,20,3.250 ±0.345,2.500 ±0.659,0.795 ±0.054,0.831 ±0.041
+probe_repair_only,qwen3-coder-30b-a3b-instruct,20,1.300 ±0.767,2.950 ±0.628,0.788 ±0.067,0.830 ±0.047

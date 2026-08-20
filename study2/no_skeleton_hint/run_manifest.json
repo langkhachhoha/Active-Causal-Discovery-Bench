@@ -1,0 +1,90 @@
+{
+  "run_id": "20260816T143303Z",
+  "study": "study2_probe",
+  "created_at_utc": "2026-08-16T14:33:03.303655+00:00",
+  "levels": [
+    1,
+    2
+  ],
+  "level_specs": {
+    "1": {
+      "level_id": 1,
+      "d": 6,
+      "k": 6,
+      "noise_var": 1.0,
+      "budget_slack": 1
+    },
+    "2": {
+      "level_id": 2,
+      "d": 8,
+      "k": 8,
+      "noise_var": 1.0,
+      "budget_slack": 1
+    }
+  },
+  "seeds_per_level": 10,
+  "seed_map": {
+    "1": [
+      123393401,
+      295485567,
+      325160078,
+      1719885688,
+      239607114,
+      1279549348,
+      1943031107,
+      1580201974,
+      1078156455,
+      1158667886
+    ],
+    "2": [
+      1470120545,
+      1004126917,
+      1343008841,
+      848528041,
+      433882786,
+      920829464,
+      424836758,
+      1036482875,
+      674912463,
+      1761685205
+    ]
+  },
+  "models": [
+    "qwen/qwen3-coder-30b-a3b-instruct",
+    "openai/gpt-4o-mini-2024-07-18"
+  ],
+  "arms": [
+    "probe_llm_graphs",
+    "probe_skel_only"
+  ],
+  "args": {
+    "levels": "1,2",
+    "seeds_per_level": 10,
+    "models": "qwen3-coder-30b,gpt-4o-mini",
+    "arms": "probe_llm_graphs,probe_skel_only",
+    "out_dir": "traces/study2/no_skeleton_hint",
+    "env_file": ".env",
+    "alpha": 0.05,
+    "n_obs": 60,
+    "n_int": 40,
+    "preflight_seed": 20260816,
+    "num_candidates": 12,
+    "propose_rounds": 1,
+    "max_hypotheses": 48,
+    "eig_outcomes": 12,
+    "budget_slack": -1,
+    "no_skeleton_hint": true,
+    "max_skeleton_edits": 4,
+    "max_skeleton_variants": 6,
+    "max_dags_per_skeleton": 1024,
+    "e2e_max_steps": 12,
+    "temperature": 0.0,
+    "max_tokens": 4000,
+    "max_repairs": 2,
+    "workers": 6,
+    "resume": true,
+    "retry_failed": false,
+    "no_share_proposals": false,
+    "limit": 0
+  }
+}

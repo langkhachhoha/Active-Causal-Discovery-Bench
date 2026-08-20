@@ -61,6 +61,30 @@ class CsvSink:
         self._path = path
         self._header = header
         self._exists = path.exists()
+        if self._exists:
+            self._migrate()
+
+    def _migrate(self) -> None:
+        """Rewrite an existing file whose header predates the current one.
+
+        Resuming a run after new columns were added used to append wide rows under a
+        narrow header, producing a file no CSV reader will parse. Any column the old
+        file has and the new header does not is kept on the end, so a migration never
+        loses data.
+        """
+        with self._path.open("r", encoding="utf-8", newline="") as fh:
+            reader = csv.DictReader(fh)
+            existing = list(reader.fieldnames or [])
+            if existing == self._header:
+                return
+            rows = list(reader)
+        merged = self._header + [c for c in existing if c not in self._header]
+        self._header = merged
+        with self._path.open("w", encoding="utf-8", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=merged)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow({key: row.get(key, "") for key in merged})
 
     def write(self, row: dict[str, Any]) -> None:
         clean = {key: _cell(row.get(key, "")) for key in self._header}

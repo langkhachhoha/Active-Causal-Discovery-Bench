@@ -1,0 +1,774 @@
+\documentclass{article}
+
+\PassOptionsToPackage{numbers,sort&compress}{natbib}
+\usepackage{neurips_2026}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds}
+
+\hypersetup{hidelinks}
+
+\graphicspath{{figures/}{../figures/}}
+
+% Compact float layout. Page geometry is the unmodified NeurIPS style.
+\makeatletter
+\setlength{\@neuripsabovecaptionskip}{4\p@}
+\makeatother
+\setlength{\textfloatsep}{9pt plus 2pt minus 2pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+\setlength{\floatsep}{8pt plus 2pt minus 2pt}
+\renewcommand{\arraystretch}{0.96}
+
+\newcommand{\nem}{\textsc{NemChua}}
+\newcommand{\rauma}{\textsc{RauMa}}
+\newcommand{\Dobs}{D_{\mathrm{obs}}}
+\newcommand{\Hyp}{\mathcal{H}}
+
+\title{\nem: The LLM Guesses, Bayes Decides\\ for Active Causal Discovery}
+
+\author{%
+  Anonymous Author(s) \\
+  Affiliation \\
+  Address \\
+  \texttt{email} \\
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+How good does a large language model (LLM) have to be before it is worth putting inside a
+scientific agent? We argue the question is mis-posed: what matters is not how often the model is
+right, but whether the surrounding architecture can throw its errors away for free. We test this
+in active causal discovery, where an agent spends a small budget of interventions to identify an
+unknown causal graph. \nem{} confines the LLM to a single job --- proposing which adjacencies a
+statistical estimator probably got wrong --- and hands every numerical decision to exact
+machinery: a Bayesian score ranks the resulting candidate graphs, expected information gain picks
+each experiment, and a closed-form likelihood updates the belief. Auditing the proposals against
+ground truth, we find they are barely better than guessing: across $960$ episodes
+\texttt{gpt-4o-mini} proposes $236$ edits of which $11$ are correct ($4.7\%$, $1.23\times$ the
+rate of an uninformed editor). Yet the same system reaches $0.950$ directed-edge F1 against
+$0.857$ for the strongest classical active baseline ($+0.093$, $p{=}0.0008$, paired) and $0.000$
+--- $0.180$ for the same models run end-to-end, using $32\times$ fewer tokens and one LLM call per
+episode. Controls explain the paradox. Random edits at the same rate buy nothing ($+0.021$, n.s.),
+so the content of the proposals does matter; a guard that reserves half the hypothesis budget for
+the unedited estimate bounds what a bad proposal can cost; and the true graph enters the candidate
+set $15$ points more often, because one right guess out of $236$ is enough. The value is also
+bounded and predictable: a perfect proposer would gain $+0.109$, and the LLM's contribution decays
+to zero as observational data grows, tracking the point where its edits stop beating chance.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+An autonomous scientific agent has to do three separable things: say what might be true, decide
+which experiment would best discriminate between the possibilities, and update its beliefs from
+what comes back. Language models are now inserted into all three roles, and are usually evaluated
+by a single end-to-end score. That score answers the wrong question. It tells us whether a
+particular assembly worked, not which role the model was suited to --- and the roles have very
+different tolerances for error.
+
+The difference is one of \emph{error cost}. When a model \emph{decides} something, a wrong output
+propagates directly into the answer: there is nothing downstream to catch it. When a model
+\emph{proposes} something, a wrong output is one candidate among many, and any downstream filter
+that can score candidates against data discards it at no cost. A proposer therefore does not need
+to be accurate. It needs to be better than nothing, occasionally, in a way the filter can exploit.
+This paper makes that intuition quantitative in a setting where every step can be measured
+exactly.
+
+\emph{Active causal discovery} is that setting. Observational data alone cannot tell $A \to B$
+from $B \to A$; interventions can. An agent is given a sample of observational data and a budget
+of a few interventions, and must return the directed graph. The task is small enough that the
+exact Bayesian solution is computable, so an LLM's contribution can be isolated against a fully
+mechanical version of the identical pipeline --- the control that end-to-end evaluations lack. We
+anonymize the variables as $X_0 \dots X_{d-1}$ so that no answer can be recalled from world
+knowledge, and later put real names back to measure what that removed.
+
+Our companion study, \rauma{}, established the negative half of the argument: granting an LLM
+authority to \emph{state} the graph from experimental evidence costs $0.32$ F1, because the models
+cannot judge whether a measured mean has moved relative to its sampling scale. The natural
+follow-up is the positive half. If the model should not decide, and choosing experiments turns out
+to be a solved problem, what is left for it to do?
+
+We answer: supply the hypothesis space. \nem{} shows the LLM the correlation and partial-correlation
+matrices of the observational sample together with the adjacency set the PC algorithm estimated
+from it, and asks one question --- which of those adjacencies are wrong? Every candidate graph the
+edits generate is then scored by an exact linear-Gaussian Bayesian criterion, each experiment is
+chosen to maximize expected information gain about which candidate is true, and each outcome
+updates the posterior in closed form. The model never sees interventional data and never writes an
+edge into the answer.
+
+The result is a system whose proposer is almost useless in isolation and whose overall accuracy is
+nonetheless state of the art for this benchmark. Our contributions:
+
+\begin{itemize}\itemsep1pt
+\item \textbf{A near-chance proposer that still wins.} Audited against ground truth, LLM skeleton
+edits are correct $4.7\%$--$6.3\%$ of the time, only $1.19$--$1.23\times$ the rate of an
+uninformed editor. The full system nonetheless beats the strongest classical active baseline by
+$0.093$ F1 ($p{=}0.0008$) and an end-to-end LLM agent by $0.74$--$0.95$ F1
+(Section~\ref{sec:main}, Section~\ref{sec:wrong}).
+\item \textbf{Controls that say why.} Random edits at the same rate produce no significant gain,
+so width alone is not the mechanism; removing the guard that reserves part of the hypothesis
+budget for the unedited estimate makes a bad proposal expensive again; and dropping the Bayesian
+update costs $0.34$ F1, the largest single effect in the system
+(Section~\ref{sec:mechanism}).
+\item \textbf{A boundary, stated quantitatively.} The LLM's contribution falls from $+0.058$ to
+$-0.024$ F1 as the observational sample grows from $40$ to $1000$, tracking the decay of its edit
+precision from $1.8\times$ chance to below chance. A perfect proposer would gain $+0.109$ in the
+main regime, so the channel is real, bounded, and mostly unexploited
+(Section~\ref{sec:crossover}).
+\item \textbf{Cost.} One LLM call and $\approx\!1.1$k tokens per episode, against $3.8$ calls and
+$35$k tokens for the end-to-end agent (Section~\ref{sec:cost}).
+\end{itemize}
+
+\section{Background, in plain terms}
+\label{sec:background}
+
+We keep the main text readable without prior exposure to causal discovery; formal statements are
+in Appendix~\ref{app:background}.
+
+\paragraph{What observation can and cannot tell you.}
+Suppose $d$ variables are generated by an unknown directed acyclic graph (DAG): each variable is a
+noisy linear function of its parents. From observational data one can recover which pairs are
+\emph{directly connected} --- the \emph{skeleton} --- and the direction of some, but not all,
+edges. The graphs that remain indistinguishable form an \emph{equivalence class}, summarized by a
+\emph{CPDAG}: arrows that every member agrees on, plus undirected edges that no amount of further
+observation can orient. Orienting those is what experiments are for.
+
+\paragraph{What an intervention buys.}
+Forcing $X_a$ to an unusual value and re-sampling makes the true children of $a$ shift their
+distribution while non-children do not. One such experiment therefore settles the direction of the
+edges adjacent to $a$, and the acyclicity of the graph often settles further edges for free.
+
+\paragraph{Two things the agent must supply.}
+A \emph{candidate set} $\Hyp$ of graphs it considers possible, and a \emph{policy} for spending
+its interventions. The ceiling of any such agent is set by $\Hyp$: if the true graph is not in it,
+no experiment can recover it. This is why the hypothesis space --- not the experiment policy --- is
+where we place the model.
+
+\paragraph{The statistical front-end, and why it is fallible.}
+We estimate the initial skeleton with PC, a standard constraint-based algorithm that removes an
+adjacency when the two variables look conditionally independent. With finite samples its
+independence tests are underpowered, so it misses real edges. On our instances PC recovers the
+skeleton with F1 $0.938$ and misses $27$ true adjacencies across $40$ instances --- competent, but
+wrong often enough that there is something for a proposer to fix.
+
+\section{Method}
+\label{sec:method}
+
+\nem{} is four stages with strictly separated authority (Figure~\ref{fig:method}). Only the first
+involves a language model.
+
+\begin{figure}[t]
+\centering
+\resizebox{0.97\linewidth}{!}{%
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw, rounded corners=2pt, align=center, inner sep=4pt, minimum height=9mm},
+  llm/.style={box, fill=blue!8, draw=blue!55},
+  det/.style={box, fill=black!5, draw=black!45},
+  env/.style={box, fill=orange!10, draw=orange!60},
+  ar/.style={-{Latex[length=2mm]}, thick, draw=black!60}
+]
+  \node[det] (obs) at (0,0) {$\Dobs$\\ \scriptsize observations};
+  \node[det] (pc) at (2.2,0) {PC\\ \scriptsize skeleton $S$};
+  \node[llm] (llm) at (5.0,0) {\textbf{LLM proposer}\\ \scriptsize ``which adjacencies\\ \scriptsize did PC get wrong?''};
+  \node[det] (enum) at (8.3,0) {enumerate\\ \scriptsize orientations of $S$\\ \scriptsize and of each edit};
+  \node[det] (bic) at (11.4,0) {BIC score\\ \scriptsize posterior $w$ over $\Hyp$};
+
+  \node[det] (eig) at (11.4,-2.3) {max EIG\\ \scriptsize pick target $a_t$};
+  \node[env] (env) at (8.3,-2.3) {environment\\ \scriptsize $\mathrm{do}(X_{a_t}\!=\!v)$};
+  \node[det] (bayes) at (5.0,-2.3) {Bayes update\\ \scriptsize closed-form likelihood};
+  \node[det] (out) at (1.6,-2.3) {submit\\ \scriptsize $\arg\max_h w_h$};
+
+  \draw[ar] (obs) -- (pc);
+  \draw[ar] (pc) -- (llm);
+  \draw[ar] (llm) -- (enum);
+  \draw[ar] (enum) -- (bic);
+  \draw[ar] (bic) -- (eig);
+  \draw[ar] (eig) -- (env);
+  \draw[ar] (env) -- (bayes);
+  \draw[ar] (bayes) -- (out);
+  \draw[ar] (bayes) -- ++(0,1.15) -| (bic);
+  \node[anchor=west, font=\scriptsize, text=blue!60] at (3.15,0.95)
+        {at most 4 removals and 4 additions, once per episode};
+  % The guard lives inside the enumeration stage, so it is annotated there rather than
+  % drawn as a flow, which would read as a second path to the answer.
+  \node[draw=black!45, dashed, rounded corners=2pt, fill=white, inner sep=3pt,
+        font=\scriptsize, align=center, text=black!70] (guard) at (8.3,-1.17)
+        {\textbf{the guard:} half of $|\Hyp|$ is held for orientations of PC's\\
+         \emph{unedited} skeleton, so an edit can only ever add};
+  \draw[draw=black!40, dashed] (guard) -- (enum);
+  \node[anchor=west, font=\scriptsize, text=black!55] at (0.6,-3.3)
+        {the model never sees interventional data, and never writes an edge};
+\end{tikzpicture}}
+\caption{\nem{}. The LLM contributes one list of suspected adjacency errors and nothing else; the
+candidate set, the scores, the experiment choice, the belief update and the submitted graph are
+all mechanical. The reserved share of the hypothesis budget is what keeps a wrong proposal from
+displacing the statistical estimate.}
+\label{fig:method}
+\end{figure}
+
+\paragraph{1. Propose (the only LLM call).}
+The model receives the correlation matrix, the partial correlation of every pair given all other
+variables, PC's adjacency set, and the list of currently non-adjacent pairs. It returns two lists:
+adjacencies to remove and pairs to add, at most four each. It is told the relevant fact --- in a
+linear-Gaussian DAG two variables are directly connected exactly when their partial correlation
+given the rest is non-zero --- and told that an empty list is a valid answer. It is never shown
+interventional data. Prompts are in Appendix~\ref{app:prompts}.
+
+\paragraph{2. Enumerate and score.}
+Let $S$ be PC's skeleton. We form $S$ itself, each single edit applied to $S$, and the all-edits
+variant, and enumerate acyclic orientations of each (exhaustively when cheap, sampled otherwise).
+Every candidate DAG is fitted by least squares and scored by the linear-Gaussian BIC on the same
+observational sample, giving a posterior $w_h \propto \exp(-\tfrac12 \mathrm{BIC}_h)$ over a
+candidate set $\Hyp$ of at most $48$ graphs.
+
+\emph{The guard.} Half of $|\Hyp|$ is reserved for the best-scoring orientations of the
+\emph{unedited} skeleton before any edited variant is admitted. A proposal can therefore only ever
+\emph{add} candidates; it can never evict the graphs the statistics already supported. This single
+design choice is what converts a wrong proposal from a liability into a wasted slot, and we ablate
+it directly in Section~\ref{sec:mechanism}.
+
+\paragraph{3. Choose.}
+For each variable $a$ still ambiguous under $w$, we estimate the expected information gain of
+$\mathrm{do}(X_a = v)$ about the hypothesis index by Monte Carlo over $12$ simulated outcomes, and
+intervene on the maximizer. This is the exact Bayesian design criterion for this model class, not
+a heuristic.
+
+\paragraph{4. Update and submit.}
+The interventional batch is scored under each candidate's mutilated linear-Gaussian likelihood in
+closed form and $w$ is multiplied through. The loop stops when the budget is spent or the
+posterior concentrates ($\max_h w_h > 0.999$); the MAP graph is submitted.
+
+\section{Experimental setup}
+\label{sec:setup}
+
+\paragraph{Instances.}
+Four graph sizes, $d \in \{4,6,8,10\}$ with $|E| = d$ edges, ten accepted instances each, giving
+$40$ paired instances. Instances are rejected unless they are non-trivial: the equivalence class must
+leave at least two undirected edges, those edges must not all meet at one node, the skeleton must
+be connected, and at least one intervention must be required. Edge weights are drawn away from
+zero so the model is faithful. The default sample is $n_{\mathrm{obs}} = 300$
+observational rows and $n_{\mathrm{int}} = 150$ rows per intervention. The intervention budget is
+$|I^*| + 1$, where $I^*$ is a minimum identifying intervention set --- on average $2.8$
+experiments. Variables are randomly permuted and named $X_0 \dots X_{d-1}$. Details and the
+difficulty ladder are in Appendix~\ref{app:instances}.
+
+\paragraph{Arms.}
+Every arm runs on every instance, so all comparisons are paired. \emph{Baselines}: an oracle
+ceiling; \texttt{PC+greedy}, the classical active baseline that intervenes on the highest-degree
+ambiguous node and orients by a mean-shift test (with and without Meek closure); and
+\texttt{LLM-e2e}, the same models given the raw data and full control of the loop.
+\emph{Hypothesis-space arms}, which share \nem's entire decision layer and differ only in where
+candidates come from: \texttt{no-LLM} (orientations of PC's unedited skeleton), \texttt{MEC-only}
+(PC's equivalence class), \texttt{LLM-graphs} (the model writes whole DAGs instead of edits),
+\texttt{random-DAGs}, and the proposal-content controls \texttt{random-edits} and
+\texttt{perfect-edits} described in Section~\ref{sec:mechanism}. \emph{Decision-layer arms} hold
+the candidate set fixed and remove one mechanism at a time.
+
+\paragraph{Models and protocol.}
+We use two inexpensive models at temperature zero with forced tool calls: one open-weight
+(\texttt{qwen3-coder-30b}) and one proprietary (\texttt{gpt-4o-mini}); full provider identifiers
+are in Appendix~\ref{app:instances}. Within
+an instance every ablation arm replays one shared proposal call, so arms differ only in the
+component under test and not in provider non-determinism. Error bars are $95\%$ CIs, over
+instances for arm means and over paired differences for contrasts; pairwise claims use two-sided
+Wilcoxon signed-rank tests with win/loss/tie counts, because ties are frequent and a $p$-value
+alone hides them. The main study is $960$ episodes.
+
+\section{Results}
+\label{sec:results}
+
+\subsection{\nem{} beats both the classical and the end-to-end agent}
+\label{sec:main}
+
+Table~\ref{tab:main} and Figure~\ref{fig:main}(a) give the headline. \nem{} with
+\texttt{gpt-4o-mini} reaches $0.950$ directed F1 against $0.857$ for \texttt{PC+greedy}
+($+0.093$, $95\%$ CI $[+0.046,+0.148]$, $p{=}0.0008$, W/L/T $14/1/25$) and $0.916$ with
+\texttt{qwen3-30b} ($+0.059$, $p{=}0.047$). Against the same models run end-to-end on the same
+instances the gap is $+0.950$ and $+0.736$: an unscaffolded \texttt{gpt-4o-mini} scores exactly
+zero, submitting no correct arrow in any episode.
+
+Two comparisons inside the table matter more than the baselines. Replacing the LLM's edits with
+nothing --- the \texttt{no-LLM} arm, which shares every other component --- costs $0.060$ F1
+($[+0.023,+0.108]$, $p{=}0.0075$, $9/0/31$). That difference is the entire measurable contribution
+of the language model to this system. And asking the same model for whole DAGs instead of edits
+costs $0.300$ F1: the interface, not the model, is what makes the proposal usable.
+
+Figure~\ref{fig:main}(b) addresses the natural objection that \nem{} simply spends more of its
+budget ($2.55$ interventions against $1.73$). It does not win by spending more: after a
+\emph{single} intervention \nem{} is already at $0.856$ F1, matching what \texttt{PC+greedy}
+reaches with its entire budget, and after two it is at $0.922$ while the baseline plateaus at
+$0.858$. It is ahead at every experiment count, and continues to buy accuracy where the baseline
+has stopped.
+
+\begin{table}[t]
+\caption{Main results. $40$ paired instances per arm, mean $\pm$ $95\%$ CI, $960$ episodes.
+Arms in the middle block share \nem's entire decision layer and differ only in where candidate
+graphs come from. Tokens and calls are per episode.}
+\label{tab:main}
+\centering
+\small
+\setlength{\tabcolsep}{4.2pt}
+\begin{tabular}{llcccccc}
+\toprule
+Arm & Model & directed F1 & skel.\ F1 & SHD & interv. & tokens & calls \\
+\midrule
+\multicolumn{8}{l}{\emph{reference and baselines}}\\
+oracle & N/A & $1.000 \pm 0.000$ & $1.000$ & $0.00$ & $0.00$ & $0$ & $0$ \\
+PC $+$ greedy & N/A & $0.858 \pm 0.054$ & $0.938$ & $1.18$ & $2.00$ & $0$ & $0$ \\
+PC $+$ greedy $+$ \textsc{Meek} & N/A & $0.857 \pm 0.054$ & $0.938$ & $1.18$ & $1.73$ & $0$ & $0$ \\
+LLM end-to-end & qwen3-30b & $0.180 \pm 0.048$ & $0.394$ & $9.93$ & $2.78$ & $51{,}995$ & $3.8$ \\
+LLM end-to-end & gpt-4o-mini & $0.000 \pm 0.000$ & $0.162$ & $8.90$ & $2.78$ & $35{,}396$ & $3.8$ \\
+\midrule
+\multicolumn{8}{l}{\emph{where the candidate graphs come from (decision layer held fixed)}}\\
+random DAGs & N/A & $0.348 \pm 0.069$ & $0.591$ & $8.10$ & $0.28$ & $0$ & $0$ \\
+LLM writes whole DAGs & gpt-4o-mini & $0.650 \pm 0.056$ & $0.917$ & $2.83$ & $0.75$ & $1{,}330$ & $1.0$ \\
+LLM writes whole DAGs & qwen3-30b & $0.680 \pm 0.073$ & $0.924$ & $2.78$ & $1.20$ & $2{,}221$ & $1.0$ \\
+PC equivalence class & N/A & $0.843 \pm 0.060$ & $0.938$ & $1.20$ & $1.65$ & $0$ & $0$ \\
+no LLM (PC skeleton) & N/A & $0.889 \pm 0.048$ & $0.938$ & $0.97$ & $1.75$ & $0$ & $0$ \\
+random edits & N/A & $0.910 \pm 0.039$ & $0.943$ & $0.97$ & $2.55$ & $0$ & $0$ \\
+\textbf{\nem} & qwen3-30b & $\mathbf{0.916 \pm 0.038}$ & $0.946$ & $0.85$ & $2.20$ & $1{,}843$ & $1.0$ \\
+\textbf{\nem} & gpt-4o-mini & $\mathbf{0.950 \pm 0.024}$ & $0.956$ & $0.65$ & $2.55$ & $1{,}114$ & $1.0$ \\
+perfect edits (ceiling) & N/A & $0.998 \pm 0.004$ & $0.998$ & $0.03$ & $2.00$ & $0$ & $0$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{nemchua_f2_main.pdf}
+\caption{(a) Arm means, $40$ paired instances, $95\%$ CIs. (b) Accuracy after each experiment,
+carried forward once an arm stops. \nem{} matches the classical baseline's full-budget score
+using one intervention.}
+\label{fig:main}
+\end{figure}
+
+\subsection{The proposals are barely better than guessing}
+\label{sec:wrong}
+
+The result above is easy to over-read as ``the LLM knows something about causal structure''. We
+audited every proposal against the ground truth it was never shown, and it does not.
+
+Across the $40$ main instances \texttt{gpt-4o-mini} proposed $236$ edits, of which $11$ were
+correct: a precision of $4.7\%$. \texttt{qwen3-30b} proposed $160$ and got $10$ right ($6.3\%$).
+Precision alone is not interpretable, because the base rate of being right depends on how many
+errors PC actually made, so we compare against an \emph{uninformed editor} that spends its edits
+on uniformly random pairs drawn from the same sets. That editor would score $3.8\%$ and $5.2\%$
+respectively. The models are therefore operating at $1.23\times$ and $1.19\times$ chance
+(Figure~\ref{fig:wrong}(a)).
+
+The asymmetry is instructive. Removals are worthless: of $141$ adjacencies \texttt{gpt-4o-mini}
+proposed deleting, $1$ was a genuine PC false positive --- slightly \emph{below} chance, and PC
+only made two such errors in total. All of the signal is in additions, where the model recovers
+$10$ of PC's $27$ missed adjacencies ($37\%$ recall) while proposing $95$. The model is a
+high-recall, very-low-precision detector of missing edges, which is exactly the profile a
+generate-and-filter architecture can use and a decide-directly architecture cannot.
+
+That profile pays off at the level of the \emph{set} rather than the edit
+(Figure~\ref{fig:wrong}(b)). The true DAG lies in the candidate set for $42.5\%$ of instances
+without the LLM and $57.5\%$ with it, a $15$-point gain ($p{=}0.014$) bought by $11$ correct
+guesses out of $236$. One right guess per instance is all the downstream machinery needs; the
+other $225$ occupy slots and are then scored away.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{nemchua_f3_wrong.pdf}
+\caption{(a) Edit precision against an uninformed editor drawing from the same pairs. (b) The
+true DAG enters the candidate set far more often than the edit precision would suggest, because
+only one edit needs to be right. (c) The proposal-content ladder at
+$n_{\mathrm{obs}}{=}60$: widening the space at random does not help, so the content of the
+proposal is doing the work; perfect edits show how much is left unclaimed.}
+\label{fig:wrong}
+\end{figure}
+
+\subsection{Why being wrong is cheap}
+\label{sec:mechanism}
+
+Three mechanisms make a near-chance proposer safe. We isolate each.
+
+\paragraph{Is it the content, or just a wider space?}
+The obvious deflationary explanation is that any extra candidates help, and the LLM is only a
+random-graph generator with extra steps. We test it directly with \texttt{random-edits}: the same
+pipeline, the same number of removals and additions, drawn uniformly at random from the same
+pairs. It does not reproduce the effect. In the main regime random edits gain $+0.021$ over no
+edits ($[-0.025,+0.072]$, $p{=}0.48$) against the LLM's $+0.060$ ($p{=}0.0075$), and at
+$n_{\mathrm{obs}}{=}60$ they \emph{lose} $0.067$ ($p{=}0.051$). Interestingly, random editing does
+raise candidate-set containment (from $0.425$ to $0.500$), so it widens the space in the intended
+sense --- it just dilutes it at the same time. The LLM's containment gain is twice as large and is
+the one that converts into accuracy.
+
+\paragraph{Does the guard matter?}
+Half the hypothesis budget is reserved for the unedited skeleton
+(Section~\ref{sec:method}). Turning that reservation off lets proposals compete for every slot.
+With perfect edits the guard is nearly irrelevant ($0.998$ either way) --- there is nothing to
+protect against. With random edits it is worth $0.058$ F1 ($0.910$ with, $0.852$ without), and
+without it the true DAG is pushed out of the candidate set outright in a substantial fraction of
+instances (Figure~\ref{fig:mechanism}(a)). The guard is precisely the component that makes the
+system's tolerance for bad proposals a design property rather than a lucky accident.
+
+\paragraph{What does the decision layer contribute?}
+Table~\ref{tab:decision} holds the candidate set fixed and removes one mechanism at a time. The
+Bayesian update dominates everything: without it the system keeps its BIC ranking, performs its
+experiments, and ignores the results, scoring $0.609$ --- a loss of $0.341$, larger than the gap
+between \nem{} and an untooled LLM agent. Re-scoring candidates by BIC rather than a uniform prior
+is worth $0.017$. Choosing experiments by expected information gain beats random selection by
+$0.049$, but beats a one-line max-degree heuristic by only $0.005$ (n.s.), reproducing our
+companion study's finding that experiment \emph{selection} is not where these systems fail.
+Figure~\ref{fig:mechanism}(b) shows the corresponding posterior collapse: $2.32$ nats at the
+start, $1.01$ after one experiment, $0.31$ after two, $0.14$ after three.
+
+\begin{table}[t]
+\caption{Decision-layer ablations, candidate set held fixed, $40$ paired instances.
+$\Delta$ is against full \nem{} on the same model. The belief update, not the experiment choice,
+is what carries the system.}
+\label{tab:decision}
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lcccccc}
+\toprule
+& \multicolumn{2}{c}{gpt-4o-mini} & \multicolumn{2}{c}{qwen3-30b} & \multicolumn{2}{c}{diagnostics} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+Arm & directed F1 & $\Delta$ & directed F1 & $\Delta$ & final entropy & MAP weight \\
+\midrule
+\nem{} (full)                & $0.950$ & --- & $0.916$ & --- & $0.14$ & $0.96$ \\
+$-$ Bayes update             & $0.609$ & $-0.341$ & $0.623$ & $-0.293$ & $2.37$ & $0.17$ \\
+$-$ EIG (random experiment)  & $0.901$ & $-0.049$ & $0.896$ & $-0.021$ & $0.42$ & $0.81$ \\
+$-$ BIC (uniform prior)      & $0.933$ & $-0.017$ & $0.913$ & $-0.003$ & $0.42$ & $0.79$ \\
+$-$ EIG (max-degree rule)    & $0.945$ & $-0.005$ & $0.903$ & $-0.013$ & $0.24$ & $0.92$ \\
+edge marginals, not MAP      & $0.950$ & $\pm 0.000$ & $0.916$ & $\pm 0.000$ & $0.14$ & $0.96$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{nemchua_f4_mechanism.pdf}
+\caption{(a) Reserving part of the hypothesis budget for the unedited estimate bounds what a bad
+proposal costs, and is nearly free when the proposal is good. (b) Posterior entropy over the
+candidate set. Without the Bayes update the belief never moves, which is why that ablation is the
+most expensive one.}
+\label{fig:mechanism}
+\end{figure}
+
+\subsection{Where the proposal channel earns its keep --- and where it stops}
+\label{sec:crossover}
+
+An LLM that edits a statistical estimate can only help to the extent the estimate is wrong. We
+sweep the observational sample size from $40$ to $1000$ rows on fixed instances, which moves PC's
+skeleton quality without touching anything else (Figure~\ref{fig:crossover}).
+
+The contribution decays monotonically and changes sign. At $n_{\mathrm{obs}}{=}40$ the LLM is
+worth $+0.052$ (\texttt{gpt-4o-mini}) and $+0.058$ (\texttt{qwen3-30b}, $p{=}0.008$) over the
+identical pipeline without it. By $n_{\mathrm{obs}}{=}120$ the gain is indistinguishable from
+zero, and at $300$ and $1000$ it is negative ($-0.030$ and $-0.024$). Panel (b) supplies the
+mechanism: edit precision relative to chance falls from $1.8\times$ at $n{=}40$ to $1.1\times$ at
+$n{=}300$ and to at-or-below chance at $n{=}1000$. When PC has few errors left to find, the
+model's proposals are indistinguishable from noise, and noise is not free --- it consumes
+hypothesis slots.
+
+This also explains why the main table, at $n_{\mathrm{obs}}{=}300$, still shows a significant
+$+0.060$: it spans $d{=}4$ to $d{=}10$, and PC's difficulty is set by the ratio of data to graph
+size rather than by sample size alone. The general statement is not ``LLMs help when data is
+scarce'' but ``LLMs help exactly where the statistical front-end is underpowered''.
+
+Two further readings of the same figure are worth stating plainly. First, the \emph{perfect-edits}
+arm gains $+0.231$ at $n{=}40$ and $+0.109$ in the main regime, reaching $0.998$ F1 --- meaning
+that once the skeleton is right, this pipeline recovers the DAG essentially always, and
+\emph{every remaining error in the system is an adjacency error}. Second, against that ceiling the
+LLM captures roughly a quarter of the available gain at $n{=}40$ and just over half in the main
+regime. The proposal channel is real, it is worth more than any model we tested extracts from it,
+and it is the right place to aim a better proposer.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{nemchua_f5_crossover.pdf}
+\caption{(a) The LLM's contribution over the identical pipeline without it, against observational
+sample size, $20$ paired instances per point. (b) The same models' edit precision divided by the
+rate an uninformed editor achieves. The two panels track each other: the proposer stops helping
+exactly when it stops beating chance.}
+\label{fig:crossover}
+\end{figure}
+
+\IfFileExists{../figures/nemchua_f6_models.pdf}{%
+\subsection{Does a better model, or a named variable, change the picture?}
+\label{sec:models}
+
+Two objections remain. The proposers we used are inexpensive, and our variables are anonymized ---
+which strips exactly the world knowledge an LLM is supposed to contribute.
+Figure~\ref{fig:models} addresses both. Panel (a) runs the identical architecture with five
+proposers spanning roughly two orders of magnitude of price. Panel (b) replaces $X_0 \dots X_{d-1}$
+with the published variable names of five standard benchmark structures, holding the graph, the
+parameters, the samples and the node indices fixed, so that the only thing that changes between
+conditions is the words.
+}{}
+
+\subsection{Cost}
+\label{sec:cost}
+
+\nem{} makes one forced tool call per episode and spends $1{,}114$ tokens
+(\texttt{gpt-4o-mini}) or $1{,}843$ (\texttt{qwen3-30b}), about \$0.0002--\$0.0007. The end-to-end
+agent spends $3.8$ calls and $35$k--$52$k tokens for a worse answer: $32\times$ and $28\times$
+more tokens for $0.95$ and $0.74$ less F1. The reason is structural rather than a matter of prompt
+economy --- an end-to-end agent must carry every interventional batch through its context window,
+while \nem{} never shows the model interventional data at all. The remaining computation is
+milliseconds of exact enumeration and scoring.
+
+\section{Related work}
+\label{sec:related}
+
+\paragraph{Active causal discovery.}
+Choosing interventions to identify a graph is a long-standing problem, addressed by
+coverage arguments over the equivalence class, by information-theoretic acquisition, by Bayesian
+experimental design over structure posteriors, and more recently by learned or amortized
+acquisition policies. Our decision layer is deliberately a textbook instance of the Bayesian
+branch rather than a contribution: it is the fixed, exact yardstick against which the proposal
+channel is measured.
+
+\paragraph{LLMs and causality.}
+Language models have been used as semantic causal experts that answer pairwise
+cause-effect questions, as priors or initializers for structure learning, as search operators
+over graphs, and as end-to-end agents driving a discovery loop. Evaluations typically report a
+final graph or task score on named variables, where the answer is partly recoverable from world
+knowledge. We anonymize variables to close that channel, and then reopen it deliberately as a
+measured condition rather than an uncontrolled confound.
+
+\paragraph{Propose-and-verify architectures.}
+The pattern of generating many candidates cheaply and filtering them with a trusted verifier
+recurs across program synthesis, theorem proving and reasoning-with-verifiers. What that
+literature mostly measures is end-to-end pass rate. The quantity we think matters ---
+\emph{how accurate does the generator have to be, given the verifier} --- is rarely measured
+directly, because in most of those domains the ground truth of an individual proposal is not
+observable. Causal discovery on synthetic instances is unusual in that it is, which is what lets
+us report a proposer's precision and its downstream value in the same experiment.
+
+\section{Discussion and conclusion}
+\label{sec:conclusion}
+
+The number we find most useful is not $0.950$ but $4.7\%$. A component that is right one time in
+twenty is, by any ordinary standard, not working --- and it lifts a well-tuned classical pipeline
+by $0.093$ F1 while costing a thousand tokens. What makes that possible is not the model. It is
+that the architecture puts the model somewhere its errors are cheap: a wrong proposal occupies a
+slot in a candidate set and is then scored away by a criterion the model does not control, using
+data the model never sees.
+
+Read alongside our companion study, the pair gives a fairly sharp allocation rule. Giving an LLM
+authority over the \emph{readout} --- letting it state conclusions from experimental evidence ---
+costs $0.32$ F1, because a wrong output there goes straight into the answer. Giving it authority
+over \emph{proposals} gains $0.06$--$0.09$ F1 at $4.7\%$ accuracy, because a wrong output there is
+free. Neither number is about how smart the model is. Both are about how much a mistake costs
+where it is made. We would suggest that ``where can this component be wrong cheaply?'' is a more
+productive design question for LLM scientific agents than ``is this component accurate enough?''.
+
+The limits are equally clear, and we would rather state them than have them found. The LLM's
+contribution is not significant for every model we tested, it decays to zero and then to negative
+as the statistical front-end strengthens, and a perfect proposer would be worth roughly twice what
+the best of ours delivered. The exact posterior that makes the filtering possible is affordable
+only for small graphs; scaling this design past $d \approx 12$ requires replacing exact
+enumeration with a sampler, which weakens the very guarantee the argument rests on. And our
+proposer is being asked to do statistics rather than recall domain facts, which is plausibly the
+task LLMs are worst at --- the version of this system that matters scientifically is one where
+the variables mean something.
+
+\section*{Reproducibility statement}
+Every number in this paper is recomputed from the released run tree by
+\texttt{paper/nemchua\_numbers.py}; figures are produced by
+\texttt{scripts/make\_nemchua\_figures.py} and the proposal audit by
+\texttt{scripts/nemchua\_edit\_audit.py}. Instance generation is seeded and the accepted seed map
+is stored in each run manifest, so every arm sees identical instances. The full experiment
+schedule is \texttt{scripts/study2.sh}.
+
+\appendix
+
+\section{Formal background}
+\label{app:background}
+
+\paragraph{Model class.}
+A linear-Gaussian structural causal model over a DAG $G$ on $d$ nodes sets
+$X_j = \sum_{i \in \mathrm{pa}_G(j)} \beta_{ij} X_i + \varepsilon_j$ with
+$\varepsilon_j \sim \mathcal{N}(0, \sigma_j^2)$ independent. We assume causal sufficiency (no
+hidden confounders), faithfulness (no conditional independence beyond those implied by $G$), and
+full observability.
+
+\paragraph{Equivalence.}
+Two DAGs are Markov equivalent iff they share a skeleton and a set of unshielded colliders
+($i \to k \leftarrow j$ with $i,j$ non-adjacent). The equivalence class is represented by a CPDAG:
+edges compelled in every member are directed, the rest undirected. Observational data identify $G$
+only up to its CPDAG.
+
+\paragraph{Interventions.}
+A hard intervention $\mathrm{do}(X_a = v)$ replaces $a$'s structural equation by the constant $v$,
+mutilating $G$ by deleting edges into $a$. Under our assumptions the interventional distribution
+of an adjacent $X_b$ shifts iff $a \to b$, which is what makes an experiment informative about
+orientation.
+
+\paragraph{Scoring.}
+For a candidate $h$ we fit $\hat\beta, \hat\sigma^2$ by least squares and use
+$\mathrm{BIC}_h = -2 \ell_h + k_h \log n$ with $k_h$ the parameter count, treating
+$w_h \propto \exp(-\tfrac12 \mathrm{BIC}_h)$ as a posterior over $\Hyp$ under a uniform structure
+prior. This is the standard BIC approximation to the marginal likelihood, exact up to $O(1)$ for
+this model class.
+
+\paragraph{Expected information gain.}
+Writing $H$ for the index of the true hypothesis and $Y_a$ for the batch returned by
+$\mathrm{do}(X_a = v)$, we choose
+$a_t = \arg\max_a\; \mathbb{H}[H] - \mathbb{E}_{Y_a}\,\mathbb{H}[H \mid Y_a]$,
+estimating the expectation by sampling $12$ outcomes from the current posterior predictive. Both
+entropies are over the finite candidate set, so this is exact up to Monte Carlo error.
+
+\paragraph{Metrics.}
+\emph{Directed-edge F1} scores submitted arrows against $G$: an arrow is correct only if both its
+adjacency and its orientation are right. \emph{Skeleton F1} scores adjacencies only, ignoring
+direction, and therefore upper-bounds directed F1. \emph{SHD} counts the single-edge operations
+needed to turn the submission into $G$.
+
+\section{Instance generation and the difficulty ladder}
+\label{app:instances}
+
+Instances are sampled and then filtered by a fixed acceptance policy, identical for every arm.
+A candidate is rejected if its CPDAG leaves fewer than two undirected edges (too little for
+experiments to do), if every undirected edge meets the same node (one intervention would settle
+everything), if its skeleton is disconnected, if no intervention is needed at all, or if any
+relevant structural partial correlation falls below a faithfulness margin of $0.1$. Edge weights are drawn from
+$(-2,-0.5) \cup (0.5,2)$ and noise variances are unit.
+
+The two proposers are \texttt{qwen/qwen3-coder-30b-a3b-instruct} and
+\texttt{openai/gpt-4o-mini-2024-07-18}, both served through OpenRouter.
+
+Density is $|E| = d$ by design. This calibrates PC to be a competent but imperfect front-end: it
+achieves skeleton F1 $0.938$ at $n_{\mathrm{obs}}{=}300$, leaves $3$--$5$ undirected edges,
+and the true DAG lies in the equivalence class PC estimates in only $40\%$ of instances. At higher density
+($|E| \approx 1.4d$) PC's skeleton is wrong so often that every arm is capped at the same low
+ceiling and no experiment can help --- the study degenerates, which is a limitation of the design
+worth naming rather than a property of the methods.
+
+\begin{table}[h]
+\caption{The difficulty ladder. $|I^*|$ is the size of a minimum identifying intervention set;
+budget is $|I^*| + 1$. Values are means over the ten accepted instances at each level.}
+\label{tab:levels}
+\centering
+\small
+\begin{tabular}{ccccccc}
+\toprule
+Level & $d$ & $|E|$ & undirected edges in CPDAG & $|I^*|$ & budget & PC skeleton F1 \\
+\midrule
+0 & 4  & 4  & $4.0$ & $1.4$ & $2.4$ & $0.900$ \\
+1 & 6  & 6  & $3.3$ & $1.7$ & $2.7$ & $0.956$ \\
+2 & 8  & 8  & $3.4$ & $1.8$ & $2.8$ & $0.946$ \\
+3 & 10 & 10 & $4.7$ & $2.2$ & $3.2$ & $0.951$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Prompts}
+\label{app:prompts}
+
+\paragraph{Proposer (system).}
+\begin{quote}\small\ttfamily
+You audit the adjacency structure of a causal graph estimated from a small sample. The world is an
+unknown linear-Gaussian DAG with no hidden confounders and full observability. You are given the
+correlation matrix, the partial correlation of every pair given all other variables, and the
+adjacency set the PC algorithm returned from the same sample. Read the statistics like this: for a
+linear-Gaussian DAG, two variables are directly connected if and only if their partial correlation
+given all others is non-zero. So a pair with a sizeable partial correlation that PC left
+non-adjacent is a likely FALSE NEGATIVE, and a pair PC made adjacent whose partial correlation is
+near zero is a likely FALSE POSITIVE. With a small sample PC's independence tests are underpowered,
+so borderline values matter. List only the pairs you would genuinely bet on --- an empty list is a
+valid and often correct answer. Do not restate the whole graph; report edits only. At most 4
+removals and 4 additions. Call propose\_skeleton\_edits exactly once.
+\end{quote}
+
+\paragraph{Proposer (user).} A JSON object with the variable list, the observational summary
+(row count, means, standard deviations, correlation matrix, full-order partial correlation
+matrix), PC's adjacency list, and the list of currently non-adjacent pairs.
+
+\paragraph{Whole-graph proposer.} The \texttt{LLM-graphs} arm receives the same statistics and is
+asked for twelve distinct acyclic candidate DAGs, with instructions to vary the orientation of
+edges the data cannot orient and to vary borderline adjacencies. It is told explicitly that a set
+containing the truth is more valuable than a set of near-identical safe guesses.
+
+\paragraph{Sanitizer.} Every model-produced structure passes through one shared routine before it
+touches the pipeline: indices are coerced and range-checked, self-loops and duplicates are
+dropped, removals are kept only if the pair is currently adjacent and additions only if it is not,
+and any edge that would create a cycle is discarded. Malformed tool calls are re-prompted at most
+twice and then counted as a failure. The proposal audit in Section~\ref{sec:wrong} scores edits
+\emph{after} sanitization, so it measures what the system actually acted on.
+
+\section{Additional results}
+\label{app:extra}
+
+\paragraph{Two ablations that do nothing, and why.}
+Adding PC's equivalence class to the edit-derived candidate set changes no episode in any run
+($0/40$ differences). This is not a null result but an identity: every member of PC's equivalence
+class is an acyclic orientation of PC's skeleton, and the guard already reserves half the
+hypothesis budget for the best-scoring such orientations, so the union adds nothing that survives
+pruning. Likewise, submitting posterior edge marginals instead of the MAP graph reproduces the MAP
+graph exactly, because the posterior concentrates hard --- mean MAP weight $0.961$, mean final
+entropy $0.14$ nats. We report both because they bound how much of the design is load-bearing:
+neither is.
+
+\paragraph{Proposal-content ladder across sample sizes.}
+Gains over the no-edit arm, $20$ paired instances per cell:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccccc}
+\toprule
+$n_{\mathrm{obs}}$ & $40$ & $60$ & $120$ & $300$ & $1000$ \\
+\midrule
+random edits              & $+0.003$ & $-0.067$ & $-0.032$ & $-0.025$ & $-0.004$ \\
+LLM edits (gpt-4o-mini)   & $+0.052$ & $+0.002$ & $+0.010$ & $-0.030$ & $-0.024$ \\
+LLM edits (qwen3-30b)     & $+0.058$ & $+0.018$ & $+0.001$ & $-0.021$ & $-0.008$ \\
+perfect edits             & $+0.231$ & $+0.188$ & $+0.140$ & $+0.062$ & $+0.025$ \\
+\midrule
+edit precision $\div$ chance (gpt-4o-mini) & $1.79$ & $1.13$ & $1.16$ & $1.09$ & $0.81$ \\
+edit precision $\div$ chance (qwen3-30b)   & $1.49$ & $1.85$ & $1.10$ & $1.09$ & $0.00$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Limitations}
+\label{app:limitations}
+
+\paragraph{The proposer is asked to do statistics.}
+With anonymized variables the model cannot use domain knowledge, only the correlation and partial
+correlation matrices --- and reading a partial correlation against its sampling noise is close to
+the competency our companion study showed these models lack. The near-chance precision we report
+should therefore be read as a lower bound on what a proposer could contribute, not as a general
+claim about LLMs and causality.
+
+\paragraph{Exactness does not scale.}
+The filtering that makes wrong proposals cheap depends on an exact posterior over an enumerated
+candidate set, which is affordable to about $d = 12$. Beyond that the candidate set must be
+sampled, and a sampled filter can miss the truth even when a proposal contains it. Whether the
+error-cost argument survives that substitution is untested here.
+
+\paragraph{One model class, one front-end.}
+All results assume linear-Gaussian mechanisms, causal sufficiency and hard interventions, with PC
+as the front-end. The crossover in Section~\ref{sec:crossover} is a statement about \emph{how
+wrong the front-end is}, and we vary that through sample size only; varying it through the
+significance threshold or through a different estimator would be a stronger test.
+
+\paragraph{Effect sizes are small for one of two models.}
+The LLM's contribution over the no-LLM pipeline is significant for \texttt{gpt-4o-mini}
+($+0.060$, $p{=}0.0075$) but not for \texttt{qwen3-30b} ($+0.027$, $p{=}0.20$) in the main regime,
+while at $n_{\mathrm{obs}}{=}40$ the ordering reverses. The headline comparisons against the
+classical and end-to-end baselines are large and robust; the LLM-versus-no-LLM comparison is not,
+and we have reported it at that strength throughout.
+
+\end{document}

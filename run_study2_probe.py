@@ -261,6 +261,24 @@ def main() -> int:
         run_id = str(manifest["run_id"])
         seed_map = {int(k): [int(x) for x in v] for k, v in manifest["seed_map"].items()}
         levels = [int(x) for x in manifest["levels"]]
+        # Everything that shapes the instances or the episode comes from the manifest, not
+        # from this invocation's defaults. Resuming to add an arm used to silently rebuild
+        # the instances at the CLI default sample size, so the new rows described a
+        # different world than the ones already in the file.
+        restored = {}
+        for key in ("n_obs", "n_int", "alpha", "budget_slack", "max_hypotheses",
+                    "max_skeleton_edits", "max_skeleton_variants", "max_dags_per_skeleton",
+                    "eig_outcomes", "num_candidates", "propose_rounds", "no_skeleton_hint",
+                    "reserve_frac", "noise_edits_remove", "noise_edits_add",
+                    "preflight_seed", "seeds_per_level"):
+            recorded = manifest.get("args", {}).get(key)
+            if recorded is not None and getattr(args, key) != recorded:
+                restored[key] = (getattr(args, key), recorded)
+                setattr(args, key, recorded)
+        if restored:
+            print("[resume] using the run's recorded settings, not this command's:", flush=True)
+            for key, (was, now) in sorted(restored.items()):
+                print(f"           {key}: {was!r} -> {now!r}", flush=True)
     else:
         run_id = run_id_now()
         print(f"[preflight] building seed map for levels {levels} ...", flush=True)

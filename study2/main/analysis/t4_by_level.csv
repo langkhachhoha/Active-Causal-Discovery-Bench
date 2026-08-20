@@ -1,0 +1,97 @@
+arm,model_tag,level,n,directed_f1,truth_in_hypotheses
+llm_e2e,gpt-4o-mini-2024-07-18,0,10,0.000 ±0.000,—
+llm_e2e,gpt-4o-mini-2024-07-18,1,10,0.000 ±0.000,—
+llm_e2e,gpt-4o-mini-2024-07-18,2,10,0.000 ±0.000,—
+llm_e2e,gpt-4o-mini-2024-07-18,3,10,0.000 ±0.000,—
+llm_e2e,qwen3-coder-30b-a3b-instruct,0,10,0.221 ±0.073,—
+llm_e2e,qwen3-coder-30b-a3b-instruct,1,10,0.295 ±0.099,—
+llm_e2e,qwen3-coder-30b-a3b-instruct,2,10,0.111 ±0.102,—
+llm_e2e,qwen3-coder-30b-a3b-instruct,3,10,0.095 ±0.057,—
+oracle,none,0,10,1.000 ±0.000,—
+oracle,none,1,10,1.000 ±0.000,—
+oracle,none,2,10,1.000 ±0.000,—
+oracle,none,3,10,1.000 ±0.000,—
+pc_greedy,none,0,10,0.786 ±0.146,—
+pc_greedy,none,1,10,0.815 ±0.125,—
+pc_greedy,none,2,10,0.907 ±0.068,—
+pc_greedy,none,3,10,0.925 ±0.047,—
+pc_greedy_meek,none,0,10,0.786 ±0.146,—
+pc_greedy_meek,none,1,10,0.815 ±0.125,—
+pc_greedy_meek,none,2,10,0.907 ±0.068,—
+pc_greedy_meek,none,3,10,0.920 ±0.052,—
+probe,gpt-4o-mini-2024-07-18,0,10,0.961 ±0.054,0.800 ±0.261
+probe,gpt-4o-mini-2024-07-18,1,10,0.965 ±0.037,0.700 ±0.299
+probe,gpt-4o-mini-2024-07-18,2,10,0.932 ±0.065,0.500 ±0.327
+probe,gpt-4o-mini-2024-07-18,3,10,0.941 ±0.033,0.300 ±0.299
+probe,qwen3-coder-30b-a3b-instruct,0,10,0.889 ±0.089,0.500 ±0.327
+probe,qwen3-coder-30b-a3b-instruct,1,10,0.923 ±0.096,0.600 ±0.320
+probe,qwen3-coder-30b-a3b-instruct,2,10,0.922 ±0.073,0.500 ±0.327
+probe,qwen3-coder-30b-a3b-instruct,3,10,0.931 ±0.054,0.400 ±0.320
+probe_llm_graphs,gpt-4o-mini-2024-07-18,0,10,0.557 ±0.130,0.000 ±0.000
+probe_llm_graphs,gpt-4o-mini-2024-07-18,1,10,0.680 ±0.114,0.100 ±0.196
+probe_llm_graphs,gpt-4o-mini-2024-07-18,2,10,0.730 ±0.100,0.100 ±0.196
+probe_llm_graphs,gpt-4o-mini-2024-07-18,3,10,0.631 ±0.085,0.000 ±0.000
+probe_llm_graphs,qwen3-coder-30b-a3b-instruct,0,10,0.656 ±0.222,0.200 ±0.261
+probe_llm_graphs,qwen3-coder-30b-a3b-instruct,1,10,0.706 ±0.139,0.200 ±0.261
+probe_llm_graphs,qwen3-coder-30b-a3b-instruct,2,10,0.678 ±0.125,0.100 ±0.196
+probe_llm_graphs,qwen3-coder-30b-a3b-instruct,3,10,0.681 ±0.085,0.000 ±0.000
+probe_marginal,gpt-4o-mini-2024-07-18,0,10,0.961 ±0.054,0.800 ±0.261
+probe_marginal,gpt-4o-mini-2024-07-18,1,10,0.965 ±0.037,0.700 ±0.299
+probe_marginal,gpt-4o-mini-2024-07-18,2,10,0.932 ±0.065,0.500 ±0.327
+probe_marginal,gpt-4o-mini-2024-07-18,3,10,0.941 ±0.033,0.300 ±0.299
+probe_marginal,qwen3-coder-30b-a3b-instruct,0,10,0.889 ±0.089,0.500 ±0.327
+probe_marginal,qwen3-coder-30b-a3b-instruct,1,10,0.923 ±0.096,0.600 ±0.320
+probe_marginal,qwen3-coder-30b-a3b-instruct,2,10,0.922 ±0.073,0.500 ±0.327
+probe_marginal,qwen3-coder-30b-a3b-instruct,3,10,0.931 ±0.054,0.400 ±0.320
+probe_maxdeg_sel,gpt-4o-mini-2024-07-18,0,10,0.961 ±0.054,0.800 ±0.261
+probe_maxdeg_sel,gpt-4o-mini-2024-07-18,1,10,0.965 ±0.037,0.700 ±0.299
+probe_maxdeg_sel,gpt-4o-mini-2024-07-18,2,10,0.932 ±0.065,0.500 ±0.327
+probe_maxdeg_sel,gpt-4o-mini-2024-07-18,3,10,0.921 ±0.043,0.300 ±0.299
+probe_maxdeg_sel,qwen3-coder-30b-a3b-instruct,0,10,0.871 ±0.135,0.500 ±0.327
+probe_maxdeg_sel,qwen3-coder-30b-a3b-instruct,1,10,0.882 ±0.136,0.600 ±0.320
+probe_maxdeg_sel,qwen3-coder-30b-a3b-instruct,2,10,0.928 ±0.063,0.500 ±0.327
+probe_maxdeg_sel,qwen3-coder-30b-a3b-instruct,3,10,0.931 ±0.054,0.400 ±0.320
+probe_mec_only,none,0,10,0.700 ±0.153,0.300 ±0.299
+probe_mec_only,none,1,10,0.832 ±0.132,0.500 ±0.327
+probe_mec_only,none,2,10,0.919 ±0.070,0.500 ±0.327
+probe_mec_only,none,3,10,0.920 ±0.052,0.300 ±0.299
+probe_no_bic,gpt-4o-mini-2024-07-18,0,10,0.938 ±0.055,0.800 ±0.261
+probe_no_bic,gpt-4o-mini-2024-07-18,1,10,0.950 ±0.036,0.700 ±0.299
+probe_no_bic,gpt-4o-mini-2024-07-18,2,10,0.926 ±0.063,0.500 ±0.327
+probe_no_bic,gpt-4o-mini-2024-07-18,3,10,0.916 ±0.046,0.300 ±0.299
+probe_no_bic,qwen3-coder-30b-a3b-instruct,0,10,0.918 ±0.057,0.500 ±0.327
+probe_no_bic,qwen3-coder-30b-a3b-instruct,1,10,0.901 ±0.064,0.600 ±0.320
+probe_no_bic,qwen3-coder-30b-a3b-instruct,2,10,0.916 ±0.071,0.500 ±0.327
+probe_no_bic,qwen3-coder-30b-a3b-instruct,3,10,0.916 ±0.041,0.400 ±0.320
+probe_no_update,gpt-4o-mini-2024-07-18,0,10,0.379 ±0.140,0.800 ±0.261
+probe_no_update,gpt-4o-mini-2024-07-18,1,10,0.657 ±0.135,0.700 ±0.299
+probe_no_update,gpt-4o-mini-2024-07-18,2,10,0.698 ±0.124,0.500 ±0.327
+probe_no_update,gpt-4o-mini-2024-07-18,3,10,0.701 ±0.088,0.300 ±0.299
+probe_no_update,qwen3-coder-30b-a3b-instruct,0,10,0.411 ±0.142,0.500 ±0.327
+probe_no_update,qwen3-coder-30b-a3b-instruct,1,10,0.654 ±0.138,0.600 ±0.320
+probe_no_update,qwen3-coder-30b-a3b-instruct,2,10,0.694 ±0.126,0.500 ±0.327
+probe_no_update,qwen3-coder-30b-a3b-instruct,3,10,0.732 ±0.086,0.400 ±0.320
+probe_random_hyp,none,0,10,0.600 ±0.131,0.100 ±0.196
+probe_random_hyp,none,1,10,0.333 ±0.109,0.000 ±0.000
+probe_random_hyp,none,2,10,0.200 ±0.075,0.000 ±0.000
+probe_random_hyp,none,3,10,0.260 ±0.084,0.000 ±0.000
+probe_random_sel,gpt-4o-mini-2024-07-18,0,10,0.907 ±0.091,0.800 ±0.261
+probe_random_sel,gpt-4o-mini-2024-07-18,1,10,0.930 ±0.062,0.700 ±0.299
+probe_random_sel,gpt-4o-mini-2024-07-18,2,10,0.879 ±0.098,0.500 ±0.327
+probe_random_sel,gpt-4o-mini-2024-07-18,3,10,0.888 ±0.059,0.300 ±0.299
+probe_random_sel,qwen3-coder-30b-a3b-instruct,0,10,0.864 ±0.089,0.500 ±0.327
+probe_random_sel,qwen3-coder-30b-a3b-instruct,1,10,0.920 ±0.072,0.600 ±0.320
+probe_random_sel,qwen3-coder-30b-a3b-instruct,2,10,0.909 ±0.072,0.500 ±0.327
+probe_random_sel,qwen3-coder-30b-a3b-instruct,3,10,0.889 ±0.062,0.400 ±0.320
+probe_repair_only,gpt-4o-mini-2024-07-18,0,10,0.961 ±0.054,0.800 ±0.261
+probe_repair_only,gpt-4o-mini-2024-07-18,1,10,0.965 ±0.037,0.700 ±0.299
+probe_repair_only,gpt-4o-mini-2024-07-18,2,10,0.932 ±0.065,0.500 ±0.327
+probe_repair_only,gpt-4o-mini-2024-07-18,3,10,0.941 ±0.033,0.300 ±0.299
+probe_repair_only,qwen3-coder-30b-a3b-instruct,0,10,0.889 ±0.089,0.500 ±0.327
+probe_repair_only,qwen3-coder-30b-a3b-instruct,1,10,0.923 ±0.096,0.600 ±0.320
+probe_repair_only,qwen3-coder-30b-a3b-instruct,2,10,0.922 ±0.073,0.500 ±0.327
+probe_repair_only,qwen3-coder-30b-a3b-instruct,3,10,0.931 ±0.054,0.400 ±0.320
+probe_skel_only,none,0,10,0.786 ±0.146,0.300 ±0.299
+probe_skel_only,none,1,10,0.920 ±0.072,0.600 ±0.320
+probe_skel_only,none,2,10,0.932 ±0.065,0.500 ±0.327
+probe_skel_only,none,3,10,0.920 ±0.052,0.300 ±0.299

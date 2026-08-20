@@ -191,3 +191,5 @@ result/**/checkpoint.json
 study2/**/checkpoint.json
 study2/smoke/
 study2/semantic_smoke/
+paper/nemchua_neurips2026.pdf
+!paper/nemchua_numbers.py

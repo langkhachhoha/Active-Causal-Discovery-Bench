@@ -1,0 +1,5 @@
+arm,model_tag,n,directed_f1,total_tokens,cost_usd,llm_calls,f1_per_1k_tokens
+probe,gpt-4o-mini-2024-07-18,16,0.800 ±0.087,1079.188 ±74.091,0.000 ±0.000,1.000 ±0.000,0.7416
+probe,qwen3-coder-30b-a3b-instruct,16,0.808 ±0.079,1586.125 ±98.786,0.001 ±0.000,1.000 ±0.000,0.5097
+probe_repair_only,gpt-4o-mini-2024-07-18,16,0.800 ±0.087,1079.188 ±74.091,0.000 ±0.000,1.000 ±0.000,0.7416
+probe_repair_only,qwen3-coder-30b-a3b-instruct,16,0.808 ±0.079,1586.125 ±98.786,0.001 ±0.000,1.000 ±0.000,0.5097

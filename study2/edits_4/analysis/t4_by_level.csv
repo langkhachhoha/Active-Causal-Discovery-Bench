@@ -1,0 +1,11 @@
+arm,model_tag,level,n,directed_f1,truth_in_hypotheses
+probe,gpt-4o-mini-2024-07-18,1,8,0.897 ±0.056,0.250 ±0.321
+probe,gpt-4o-mini-2024-07-18,2,8,0.704 ±0.140,0.000 ±0.000
+probe,qwen3-coder-30b-a3b-instruct,1,8,0.869 ±0.077,0.250 ±0.321
+probe,qwen3-coder-30b-a3b-instruct,2,8,0.778 ±0.080,0.125 ±0.245
+probe_repair_only,gpt-4o-mini-2024-07-18,1,8,0.897 ±0.056,0.250 ±0.321
+probe_repair_only,gpt-4o-mini-2024-07-18,2,8,0.704 ±0.140,0.000 ±0.000
+probe_repair_only,qwen3-coder-30b-a3b-instruct,1,8,0.869 ±0.077,0.250 ±0.321
+probe_repair_only,qwen3-coder-30b-a3b-instruct,2,8,0.778 ±0.080,0.125 ±0.245
+probe_skel_only,none,1,8,0.840 ±0.101,0.250 ±0.321
+probe_skel_only,none,2,8,0.710 ±0.103,0.000 ±0.000
