@@ -40,7 +40,7 @@ from causal_discovery.active.llm_client import resolve_model, short_model_name  
 from causal_discovery.equivalence.cpdag import canonical_undirected_edge  # noqa: E402
 
 COLUMNS = [
-    "level", "seed", "model_tag", "d", "n_obs",
+    "level", "seed", "arm", "model_tag", "d", "n_obs",
     "n_remove", "correct_remove", "n_add", "correct_add",
     "pc_fp", "pc_fn", "n_pc_adj", "n_non_adj", "chance_remove", "chance_add", "pc_skeleton_f1",
     # additions that are wrong *in the specific way our prompt invites*: the pair are both
@@ -100,7 +100,9 @@ def audit(run_dir: Path) -> list[dict]:
     limit = int(args["max_skeleton_edits"])
     alpha = float(args["alpha"])
 
-    proposals: dict[tuple[int, int, str], tuple[list, list]] = {}
+    # keyed by arm as well as model: two arms can ask the same model about the same
+    # instance with different prompts, and one must not overwrite the other
+    proposals: dict[tuple[int, int, str, str], tuple[list, list]] = {}
     events = run_dir / "events.jsonl"
     if not events.exists():
         return []
@@ -115,16 +117,16 @@ def audit(run_dir: Path) -> list[dict]:
         key = payload.get("work_key") or payload.get("key")
         if not key:
             continue
-        level_tag, seed_tag, _arm, model = key.split("|")
+        level_tag, seed_tag, arm, model = key.split("|")
         body = payload.get("payload") or {}
         # the work key carries the CLI alias; episodes.csv carries the resolved tag
-        proposals[(int(level_tag[1:]), int(seed_tag[1:]), short_model_name(resolve_model(model)))] = (
-            body.get("remove") or [], body.get("add") or []
-        )
+        proposals[
+            (int(level_tag[1:]), int(seed_tag[1:]), arm, short_model_name(resolve_model(model)))
+        ] = (body.get("remove") or [], body.get("add") or [])
 
     cache: dict[tuple[int, int], tuple[set, set, int]] = {}
     rows: list[dict] = []
-    for (level, seed, model), (raw_remove, raw_add) in sorted(proposals.items()):
+    for (level, seed, arm, model), (raw_remove, raw_add) in sorted(proposals.items()):
         if (level, seed) not in cache:
             instance = build_instance(LEVELS[level], seed, args["n_obs"], args["n_int"], slack)
             env = BenchmarkEnv(instance, np.random.default_rng(runtime_seed_for(level, seed)))
@@ -147,7 +149,8 @@ def audit(run_dir: Path) -> list[dict]:
         }
         spouse_available = len(non_adjacent & spouses)
         rows.append({
-            "level": level, "seed": seed, "model_tag": model, "d": d, "n_obs": args["n_obs"],
+            "level": level, "seed": seed, "arm": arm, "model_tag": model,
+            "d": d, "n_obs": args["n_obs"],
             "n_remove": len(remove), "correct_remove": sum(1 for e in remove if e in pc_fp),
             "n_add": len(add), "correct_add": sum(1 for e in add if e in truth),
             "pc_fp": len(pc_fp), "pc_fn": len(pc_fn),
@@ -179,8 +182,8 @@ def main() -> int:
             writer = csv.DictWriter(handle, fieldnames=COLUMNS)
             writer.writeheader()
             writer.writerows(rows)
-        for model in sorted({r["model_tag"] for r in rows}):
-            sub = [r for r in rows if r["model_tag"] == model]
+        for arm, model in sorted({(r["arm"], r["model_tag"]) for r in rows}):
+            sub = [r for r in rows if r["arm"] == arm and r["model_tag"] == model]
             proposed = sum(r["n_remove"] + r["n_add"] for r in sub)
             correct = sum(r["correct_remove"] + r["correct_add"] for r in sub)
             share_add = sum(r["n_add"] for r in sub) / max(proposed, 1)
@@ -193,7 +196,7 @@ def main() -> int:
             spouse_share = sum(r["add_spouse"] for r in sub) / max(wrong_adds, 1)
             spouse_chance = float(np.mean([r["chance_spouse"] for r in sub]))
             print(
-                f"[{run_dir.name}] {model:18s} n={len(sub):3d} proposed={proposed:4d} "
+                f"[{run_dir.name}] {arm:13s} {model:28s} n={len(sub):3d} proposed={proposed:4d} "
                 f"correct={correct:3d} precision={precision:.3f} chance={chance:.3f} "
                 f"lift={precision / max(chance, 1e-9):.2f}x | "
                 f"wrong-add spouse share={spouse_share:.3f} (chance {spouse_chance:.3f}, "

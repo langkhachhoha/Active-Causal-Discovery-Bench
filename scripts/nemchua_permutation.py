@@ -239,6 +239,15 @@ def main() -> int:
 
         def report(i: int) -> None:
             done = time.time() - started
+            # Until one full wave of workers has finished, every cell in flight has been
+            # running the whole time, so cells-per-minute badly understates throughput and
+            # the extrapolated finish time is off by roughly the worker count. Say so
+            # rather than printing a number that looks like a disaster.
+            if i < max(args.workers, 1) and args.workers > 1:
+                print(f"  {i}/{len(tasks)} cells  {done/60:5.1f} min elapsed "
+                      f"(first wave of {args.workers} still in flight; "
+                      f"no reliable estimate yet)", flush=True)
+                return
             rate = i / done if done > 0 else 0.0
             eta = (len(tasks) - i) / rate if rate > 0 else 0.0
             print(f"  {i}/{len(tasks)} cells  {done/60:5.1f} min elapsed, "
