@@ -26,9 +26,20 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import sys
-from concurrent.futures import ProcessPoolExecutor, as_completed
+import time
 from pathlib import Path
+
+# Each episode is a few small matrix operations, so a threaded BLAS buys nothing and 24
+# processes each spawning a full thread pool will thrash a machine into apparent deadlock.
+# This has to happen before numpy is imported to take effect.
+for _var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
+             "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+    os.environ.setdefault(_var, "1")
+
+import multiprocessing as mp  # noqa: E402
+from concurrent.futures import ProcessPoolExecutor, as_completed  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
@@ -174,7 +185,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("run_dirs", nargs="+")
     ap.add_argument("--draws", type=int, default=200)
-    ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--workers", type=int, default=8,
+                    help="1 runs everything in this process, which is the way to see a "
+                         "traceback if the pool misbehaves")
     ap.add_argument("--arm", default="probe",
                     help="which arm's proposals to replay; also the label recorded on each row")
     ap.add_argument("--reserve-frac", type=float, default=-1.0,
@@ -215,22 +228,48 @@ def main() -> int:
             print(f"[skip] {run_dir}: no recorded proposals")
             continue
         print(f"[{run_dir.name}] {len(tasks)} cells x {args.draws} draws "
-              f"= {len(tasks) * args.draws} episodes, reserve_frac={reserve}")
+              f"= {len(tasks) * (args.draws + 1):,} episodes, reserve_frac={reserve}", flush=True)
 
         rows, draw_rows = [], []
-        with ProcessPoolExecutor(max_workers=args.workers) as pool:
-            futures = {pool.submit(one_cell, t): t for t in tasks}
-            for i, fut in enumerate(as_completed(futures), 1):
+        started = time.time()
+
+        def absorb(out: dict) -> None:
+            rows.append(out["row"])
+            draw_rows.extend(out["draws"])
+
+        def report(i: int) -> None:
+            done = time.time() - started
+            rate = i / done if done > 0 else 0.0
+            eta = (len(tasks) - i) / rate if rate > 0 else 0.0
+            print(f"  {i}/{len(tasks)} cells  {done/60:5.1f} min elapsed, "
+                  f"~{eta/60:5.1f} min left", flush=True)
+
+        if args.workers <= 1:
+            for i, t in enumerate(tasks, 1):
                 try:
-                    out = fut.result()
+                    absorb(one_cell(t))
                 except Exception as exc:  # noqa: BLE001
-                    t = futures[fut]
-                    print(f"  [fail] L{t['level']} s{t['seed']} {t['model']}: {type(exc).__name__}: {exc}")
-                    continue
-                rows.append(out["row"])
-                draw_rows.extend(out["draws"])
-                if i % 20 == 0 or i == len(tasks):
-                    print(f"  {i}/{len(tasks)} cells")
+                    print(f"  [fail] L{t['level']} s{t['seed']} {t['model']}: "
+                          f"{type(exc).__name__}: {exc}", flush=True)
+                if i % 5 == 0 or i == len(tasks):
+                    report(i)
+        else:
+            # `spawn`, not the Linux default `fork`: this module imports numpy and
+            # causallearn at load time, and forking a process that already holds their
+            # thread state deadlocks the children on some builds.
+            ctx = mp.get_context("spawn")
+            print(f"  starting {args.workers} workers (spawn)...", flush=True)
+            with ProcessPoolExecutor(max_workers=args.workers, mp_context=ctx) as pool:
+                futures = {pool.submit(one_cell, t): t for t in tasks}
+                for i, fut in enumerate(as_completed(futures), 1):
+                    try:
+                        absorb(fut.result())
+                    except Exception as exc:  # noqa: BLE001
+                        t = futures[fut]
+                        print(f"  [fail] L{t['level']} s{t['seed']} {t['model']}: "
+                              f"{type(exc).__name__}: {exc}", flush=True)
+                    if i <= 3 or i % 20 == 0 or i == len(tasks):
+                        report(i)
 
         out_dir = run_dir / "analysis"
         out_dir.mkdir(parents=True, exist_ok=True)

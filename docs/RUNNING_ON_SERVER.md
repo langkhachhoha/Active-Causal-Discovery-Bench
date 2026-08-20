@@ -202,6 +202,10 @@ mới **không** thừa hưởng `conda activate`, và đó là lý do lệnh g�
 `ranker` và `perm` không gọi API nên chạy song song với `sepset` thoải mái. Muốn chắc chắn thì
 chạy `bash scripts/study2b.sh smoke` (~3 phút, ~$0.05) trước.
 
+`perm` in tiến độ ngay từ cell đầu tiên (`1/300 cells ... min left`). Nếu **không thấy dòng nào**
+sau một phút thì đó là treo thật, không phải chạy chậm — chạy lại với `ACDB_PERM_WORKERS=1` để
+thấy traceback. Đặt `ACDB_PERM_WORKERS` bằng đúng số core thật (`nproc`), đừng đặt cao hơn.
+
 - Xem tiến độ: `tmux attach -t rank` (hoặc `seps`, `perm`) — thoát bằng `Ctrl-b` rồi `d`
 - Liếc nhanh: `tmux capture-pane -pt perm | tail -20`
 - Xem cả ba: `tmux ls`
