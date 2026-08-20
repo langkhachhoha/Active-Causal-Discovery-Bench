@@ -157,6 +157,25 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    # Everything that shapes the instances comes from the manifest when resuming, not from
+    # this invocation's defaults. Adding an arm to an existing run used to silently rebuild
+    # the instances at the CLI default sample size, so the new rows described a different
+    # world than the ones already in the file.
+    if args.resume:
+        prior = Path(args.out_dir) / "run_manifest.json" if args.out_dir else None
+        if prior is not None and prior.exists():
+            recorded_args = json.loads(prior.read_text(encoding="utf-8")).get("args", {})
+            restored = {}
+            for key in ("graphs", "seeds", "seed_base", "conditions", "alpha", "n_obs", "n_int",
+                        "max_hypotheses", "eig_outcomes", "max_skeleton_edits",
+                        "max_skeleton_variants", "max_dags_per_skeleton", "reserve_frac"):
+                value = recorded_args.get(key)
+                if value is not None and getattr(args, key) != value:
+                    restored[key] = (getattr(args, key), value)
+                    setattr(args, key, value)
+            if restored:
+                print("[resume] restored from manifest: " + ", ".join(
+                    f"{k}={was!r}->{now!r}" for k, (was, now) in sorted(restored.items())), flush=True)
     graphs = parse_graph_names(args.graphs)
     models = [m.strip() for m in args.models.split(",") if m.strip()]
     arms = [a.strip() for a in args.arms.split(",") if a.strip()]
