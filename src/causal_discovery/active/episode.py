@@ -35,22 +35,52 @@ from causal_discovery.active.state import BeliefState, Evidence
 # --------------------------------------------------------------------------- #
 # PC front-end shared by every arm
 # --------------------------------------------------------------------------- #
-def run_pc(obs: np.ndarray, alpha: float) -> CPDAG:
-    """PC (Fisher-Z) on the observational panel, coerced into a valid CPDAG."""
+def run_pc(obs: np.ndarray, alpha: float, *, return_sepsets: bool = False):
+    """PC (Fisher-Z) on the observational panel, coerced into a valid CPDAG.
+
+    With `return_sepsets`, also returns the separating set PC found for each pair it made
+    non-adjacent — the actual evidence behind the decision, which a proposer needs in
+    order to second-guess it.
+    """
     from causallearn.search.ConstraintBased.PC import pc
 
     num_nodes = int(obs.shape[1])
     cg = pc(obs, alpha=alpha, indep_test="fisherz", show_progress=False, verbose=False)
+    sepsets: dict[tuple[int, int], tuple[int, ...]] = {}
+    if return_sepsets:
+        raw = getattr(cg, "sepset", None)
+        for i in range(num_nodes):
+            for j in range(i + 1, num_nodes):
+                entry = None
+                if raw is not None:
+                    try:
+                        entry = raw[i][j]
+                    except (IndexError, TypeError):
+                        entry = None
+                if entry is None:
+                    continue
+                # causallearn stores either a set of nodes or a tuple of candidate sets
+                flat: tuple[int, ...] = ()
+                if isinstance(entry, (set, frozenset, list, tuple)):
+                    items = list(entry)
+                    if items and isinstance(items[0], (set, frozenset, list, tuple)):
+                        items = list(items[0]) if items[0] is not None else []
+                    try:
+                        flat = tuple(sorted(int(x) for x in items))
+                    except (TypeError, ValueError):
+                        flat = ()
+                sepsets[(i, j)] = flat
     try:
         directed, undirected = parse_causallearn_endpoint_matrix(cg.G.graph)
     except ValueError:
         directed, undirected = frozenset(), frozenset()
     try:
-        return CPDAG(num_nodes=num_nodes, directed_edges=directed, undirected_edges=undirected)
+        result = CPDAG(num_nodes=num_nodes, directed_edges=directed, undirected_edges=undirected)
     except ValueError:
         # PC occasionally emits a directed part that is not acyclic; demote it.
         demoted = {canonical_undirected_edge(a, b) for a, b in directed} | set(undirected)
-        return CPDAG(num_nodes=num_nodes, directed_edges=frozenset(), undirected_edges=frozenset(demoted))
+        result = CPDAG(num_nodes=num_nodes, directed_edges=frozenset(), undirected_edges=frozenset(demoted))
+    return (result, sepsets) if return_sepsets else result
 
 
 def truth_in_class(pdag: CPDAG, true_dag: DAG) -> bool:

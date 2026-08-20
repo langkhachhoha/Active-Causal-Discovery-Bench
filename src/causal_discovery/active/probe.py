@@ -18,7 +18,9 @@ hypothesis space. Study 1 motivates exactly this division of labour.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass, field
+from itertools import combinations
 from typing import Any
 
 import numpy as np
@@ -51,11 +53,11 @@ from causal_discovery.active.pdag import intervention_value
 
 HYPOTHESIS_SOURCES = (
     "hybrid", "llm_repair", "llm_graphs", "hybrid_graphs", "pc_skeleton", "pc_mec", "random",
-    "oracle_repair", "noise_repair",
+    "oracle_repair", "noise_repair", "stat_repair", "true_skeleton",
 )
 # sources whose skeleton edits come from somewhere other than an LLM; they share the
 # entire downstream pipeline with `llm_repair`, so they isolate the *content* of the edits.
-EDIT_SOURCES = ("llm_repair", "hybrid", "oracle_repair", "noise_repair")
+EDIT_SOURCES = ("llm_repair", "hybrid", "oracle_repair", "noise_repair", "stat_repair")
 SELECT_RULES = ("eig", "random", "maxdeg")
 
 
@@ -81,6 +83,118 @@ def observational_summary(obs: np.ndarray) -> dict[str, Any]:
         "correlation": np.round(corr, 3).tolist(),
         "partial_correlation_given_all_others": np.round(partial, 3).tolist(),
     }
+
+
+def _partial_corr_given(obs: np.ndarray, i: int, j: int, cond: Sequence[int]) -> tuple[float, float]:
+    """Partial correlation of i and j given `cond`, with its Fisher-Z p-value."""
+    cols = [i, j] + [c for c in cond if c not in (i, j)]
+    sub = np.corrcoef(obs[:, cols], rowvar=False)
+    sub = np.nan_to_num(sub, nan=0.0)
+    try:
+        prec = np.linalg.inv(sub + 1e-8 * np.eye(sub.shape[0]))
+    except np.linalg.LinAlgError:
+        return 0.0, 1.0
+    denom = np.sqrt(prec[0, 0] * prec[1, 1])
+    rho = 0.0 if denom == 0 else float(-prec[0, 1] / denom)
+    rho = float(np.clip(rho, -0.999999, 0.999999))
+    dof = obs.shape[0] - len(cols) - 1
+    if dof <= 0:
+        return rho, 1.0
+    z = 0.5 * np.log1p(2 * rho / (1 - rho)) if abs(rho) < 1 else 0.0
+    stat = abs(z) * np.sqrt(dof)
+    p = float(2 * (1 - _std_normal_cdf(stat)))
+    return rho, min(max(p, 0.0), 1.0)
+
+
+def _std_normal_cdf(x: float) -> float:
+    from math import erf, sqrt
+
+    return 0.5 * (1.0 + erf(x / sqrt(2.0)))
+
+
+def conditional_independence_summary(
+    obs: np.ndarray,
+    pc_pdag: CPDAG,
+    sepsets: dict[tuple[int, int], tuple[int, ...]],
+) -> dict[str, Any]:
+    """The evidence PC actually used, pair by pair.
+
+    The full-order partial correlation is *not* an adjacency criterion for a DAG: its
+    support is the moral graph, so every pair of parents sharing a child looks connected.
+    What does characterise adjacency is whether *some* conditioning set separates the
+    pair. This reports, for each non-adjacent pair, the separating set PC found and how
+    decisively it separated; and for each adjacency, the closest PC came to separating it.
+    """
+    num_nodes = int(obs.shape[1])
+    skeleton = {canonical_undirected_edge(a, b) for a, b in pc_pdag.directed_edges} | set(
+        pc_pdag.undirected_edges
+    )
+    neighbours: dict[int, set[int]] = {i: set() for i in range(num_nodes)}
+    for a, b in skeleton:
+        neighbours[a].add(b)
+        neighbours[b].add(a)
+
+    separated = []
+    for (i, j), cond in sorted(sepsets.items()):
+        if (i, j) in skeleton:
+            continue
+        rho, p = _partial_corr_given(obs, i, j, cond)
+        separated.append({
+            "pair": [i, j],
+            "separating_set": list(cond),
+            "partial_corr_given_separating_set": round(rho, 3),
+            "p_value": round(p, 4),
+        })
+
+    adjacent = []
+    for (i, j) in sorted(skeleton):
+        pool = sorted((neighbours[i] | neighbours[j]) - {i, j})
+        best_rho, best_p, best_set = None, -1.0, []
+        for size in range(0, min(3, len(pool)) + 1):
+            for cond in combinations(pool, size):
+                rho, p = _partial_corr_given(obs, i, j, cond)
+                if p > best_p:
+                    best_rho, best_p, best_set = rho, p, list(cond)
+        adjacent.append({
+            "pair": [i, j],
+            "hardest_conditioning_set": best_set,
+            "partial_corr_there": round(best_rho or 0.0, 3),
+            "largest_p_value_found": round(max(best_p, 0.0), 4),
+        })
+
+    return {
+        "n_rows": int(obs.shape[0]),
+        "kept_adjacent": adjacent,
+        "made_non_adjacent": separated,
+    }
+
+
+def stat_skeleton_edits(
+    obs: np.ndarray,
+    pc_pdag: CPDAG,
+    num_nodes: int,
+    n_remove: int,
+    n_add: int,
+) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+    """The instruction we gave the LLM, executed mechanically.
+
+    Rank PC's adjacencies by how weak their full-order partial correlation is, and the
+    non-adjacent pairs by how strong theirs is, then take the top of each list. This is a
+    proposer with no world knowledge that follows our stated rule exactly, so it separates
+    "the LLM knows something" from "the rule we handed it is worth following".
+    """
+    base = sorted(
+        {canonical_undirected_edge(a, b) for a, b in pc_pdag.directed_edges} | set(pc_pdag.undirected_edges)
+    )
+    base_set = set(base)
+    summary = observational_summary(obs)
+    partial = np.asarray(summary["partial_correlation_given_all_others"], dtype=float)
+    remove = sorted(base, key=lambda e: abs(partial[e[0], e[1]]))[:max(n_remove, 0)]
+    non_adjacent = [
+        (i, j) for i in range(num_nodes) for j in range(i + 1, num_nodes) if (i, j) not in base_set
+    ]
+    add = sorted(non_adjacent, key=lambda e: -abs(partial[e[0], e[1]]))[:max(n_add, 0)]
+    return sorted(remove), sorted(add)
 
 
 # --------------------------------------------------------------------------- #
@@ -258,8 +372,34 @@ REPAIR_SYSTEM_PROMPT = (
     "partial correlation that PC left non-adjacent is a likely FALSE NEGATIVE, and a pair PC made "
     "adjacent whose partial correlation is near zero is a likely FALSE POSITIVE. With a small sample "
     "PC's independence tests are underpowered, so borderline values matter.\n"
+    "Report edits as: `add` = pairs PC left non-adjacent that should be adjacent (false negatives); `remove` = pairs PC made adjacent that should not be (false positives).\n"
     "List only the pairs you would genuinely bet on — an empty list is a valid and often correct answer. "
     "Do not restate the whole graph; report edits only. At most 4 removals and 4 additions.\n"
+    "Call propose_skeleton_edits exactly once."
+)
+
+# The prompt above states an adjacency criterion that is false for a DAG: the support of the
+# full-order partial correlation is the *moral* graph, so two parents of a common child are
+# partially correlated given everything else while being non-adjacent. This is the corrected
+# interface: it states the criterion properly and supplies the evidence PC actually used.
+REPAIR_SYSTEM_PROMPT_SEPSET = (
+    "You audit the adjacency structure of a causal graph estimated from a small sample.\n"
+    "The world is an unknown linear-Gaussian DAG with no hidden confounders and full observability.\n"
+    "Two variables are adjacent in the DAG if and only if NO set of the other variables makes them "
+    "conditionally independent. Note carefully: conditioning on ALL other variables is not the right "
+    "test. Two variables that are both parents of a common child stay correlated given everything "
+    "else even though they are NOT adjacent, so a large full-order partial correlation is NOT by "
+    "itself evidence of an edge.\n"
+    "You are given, for every pair PC made non-adjacent, the separating set it found and the partial "
+    "correlation and p-value there; and for every adjacency PC kept, the conditioning set that came "
+    "closest to separating the pair, with its partial correlation and largest p-value.\n"
+    "Judge PC's decisions against that evidence. A non-adjacent pair separated only marginally "
+    "(p just above the threshold) on a small sample is a likely FALSE NEGATIVE. An adjacency whose "
+    "closest conditioning set almost separated it is a likely FALSE POSITIVE. With a small sample "
+    "PC's tests are underpowered, so borderline values matter.\n"
+    "Report edits as: `add` = pairs PC left non-adjacent that should be adjacent (false negatives); `remove` = pairs PC made adjacent that should not be (false positives).\n"
+    "List only the pairs you would genuinely bet on \u2014 an empty list is a valid and often correct "
+    "answer. Do not restate the whole graph; report edits only. At most 4 removals and 4 additions.\n"
     "Call propose_skeleton_edits exactly once."
 )
 
@@ -320,8 +460,15 @@ def propose_skeleton_edits_llm(
     max_edits: int = 4,
     var_names: tuple[str, ...] | None = None,
     domain: str = "",
+    evidence: str = "partial",
+    sepsets: dict[tuple[int, int], tuple[int, ...]] | None = None,
 ) -> tuple[list[tuple[int, int]], list[tuple[int, int]], dict[str, Any]]:
-    """Ask the LLM which PC adjacencies to drop and which missing pairs to add."""
+    """Ask the LLM which PC adjacencies to drop and which missing pairs to add.
+
+    `evidence="partial"` hands over the full-order partial correlation matrix together with
+    the (false) rule that its support is the skeleton. `evidence="sepset"` hands over the
+    conditional-independence evidence PC actually used, with the correct rule.
+    """
     num_nodes = int(obs.shape[1])
     skeleton = sorted(
         {canonical_undirected_edge(a, b) for a, b in pc_pdag.directed_edges} | set(pc_pdag.undirected_edges)
@@ -330,7 +477,10 @@ def propose_skeleton_edits_llm(
     payload = {
         "variables": [{"index": i, "name": labels[i]} for i in range(num_nodes)] if var_names
                      else [f"X{i}" for i in range(num_nodes)],
-        "statistics": observational_summary(obs),
+        "statistics": (
+            conditional_independence_summary(obs, pc_pdag, sepsets or {})
+            if evidence == "sepset" else observational_summary(obs)
+        ),
         "pc_adjacencies": [list(e) for e in skeleton],
         "non_adjacent_pairs": [
             [i, j] for i in range(num_nodes) for j in range(i + 1, num_nodes) if (i, j) not in set(skeleton)
@@ -342,7 +492,7 @@ def propose_skeleton_edits_llm(
             if not isinstance(data.get(field), list):
                 raise ValueError(f"{field} must be a list of [i, j] pairs (use [] for none)")
 
-    system_prompt = REPAIR_SYSTEM_PROMPT
+    system_prompt = REPAIR_SYSTEM_PROMPT_SEPSET if evidence == "sepset" else REPAIR_SYSTEM_PROMPT
     if var_names and domain:
         system_prompt += SEMANTIC_SUFFIX.format(domain=domain)
     response = client.call_tool(
@@ -782,6 +932,7 @@ def run_probe_episode(
     noise_edits_add: int = 4,
     var_names: tuple[str, ...] | None = None,
     domain: str = "",
+    repair_evidence: str = "partial",
     proposal_cache: "ProposalCache | None" = None,
 ) -> EpisodeResult:
     """One PROBE (or PROBE-ablation) episode."""
@@ -792,7 +943,11 @@ def run_probe_episode(
     n_int = int(instance.config.n_int)
     true_dag = instance.true_dag
 
-    pc_pdag = run_pc(obs, alpha)
+    need_sepsets = repair_evidence == "sepset" and hypothesis_source in {"llm_repair", "hybrid"}
+    if need_sepsets:
+        pc_pdag, sepsets = run_pc(obs, alpha, return_sepsets=True)
+    else:
+        pc_pdag, sepsets = run_pc(obs, alpha), {}
 
     hypotheses: list[DAG] = []
     propose_stats: dict[str, Any] = {}
@@ -816,7 +971,8 @@ def run_probe_episode(
     remove: list[tuple[int, int]] = []
     add: list[tuple[int, int]] = []
     if hypothesis_source in {"llm_repair", "hybrid"}:
-        if client is None:
+        # a primed cache is a recorded proposal, so no client is needed to replay it
+        if client is None and not (proposal_cache is not None and proposal_cache.is_primed):
             raise ValueError("hypothesis_source requires an OpenRouter client")
         call = lambda: propose_skeleton_edits_llm(  # noqa: E731
             client,
@@ -826,6 +982,8 @@ def run_probe_episode(
             max_edits=max_skeleton_edits,
             var_names=var_names,
             domain=domain,
+            evidence=repair_evidence,
+            sepsets=sepsets,
         )
         if proposal_cache is not None:
             remove, add, repair_stats = proposal_cache.get_or_call(call, client=client)
@@ -842,8 +1000,26 @@ def run_probe_episode(
             pc_pdag, num_nodes, noise_edits_remove, noise_edits_add, rng
         )
         propose_stats.update({"repair_remove": len(remove), "repair_add": len(add)})
+    elif hypothesis_source == "true_skeleton":
+        # not an edit budget at all: the true adjacency set, however far it is from PC's.
+        # Whatever accuracy is missing here is orientation error, not adjacency error.
+        truth_adj = {canonical_undirected_edge(a, b) for a, b in true_dag.edges}
+        pc_adj = {canonical_undirected_edge(a, b) for a, b in pc_pdag.directed_edges} | set(
+            pc_pdag.undirected_edges
+        )
+        remove = sorted(pc_adj - truth_adj)
+        add = sorted(truth_adj - pc_adj)
+        propose_stats.update({"repair_remove": len(remove), "repair_add": len(add)})
+    elif hypothesis_source == "stat_repair":
+        remove, add = stat_skeleton_edits(
+            obs, pc_pdag, num_nodes, noise_edits_remove, noise_edits_add
+        )
+        propose_stats.update({"repair_remove": len(remove), "repair_add": len(add)})
 
-    if hypothesis_source in {"llm_repair", "hybrid", "pc_skeleton", "oracle_repair", "noise_repair"}:
+    if hypothesis_source in {
+        "llm_repair", "hybrid", "pc_skeleton", "oracle_repair", "noise_repair", "stat_repair",
+        "true_skeleton",
+    }:
         hypotheses.extend(
             hypotheses_from_skeleton_search(
                 obs,

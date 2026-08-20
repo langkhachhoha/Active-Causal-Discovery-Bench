@@ -71,9 +71,12 @@ ARMS = (
     "probe_skel_only",      # no LLM at all; identical in both conditions, so it anchors them
     "probe_random_edits",   # random edits at the LLM's rate
     "probe_oracle_edits",   # perfect edits -- the ceiling
+    "probe_stat_edits",     # our own instruction, executed mechanically, no world knowledge
+    "probe_true_skeleton",  # the true adjacency set at any edit distance -- separates
+                            # orientation failure from a proposal budget that is too small
 )
 CONDITIONS = ("named", "anon")
-LLM_ARMS = {"probe"}
+LLM_ARMS = {"probe", "probe_sepset"}
 
 EXTRA_COLUMNS = ["graph", "condition"]
 
@@ -276,6 +279,8 @@ def main() -> int:
                 cache = None
                 if recorded and item.arm in LLM_ARMS:
                     key = (item.graph, item.seed, item.condition, item.model)
+                    if NEMCHUA_ARMS[item.arm].get("repair_evidence", "partial") != "partial":
+                        key = (*key[:3], f"{item.model}#sepset")
                     if key not in recorded:
                         raise KeyError(f"no recorded proposal for {key}")
                     cache = ProposalCache()

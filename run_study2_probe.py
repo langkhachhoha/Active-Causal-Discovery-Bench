@@ -114,6 +114,16 @@ NEMCHUA_ARMS: dict[str, dict[str, Any]] = {
   # from the mere fact that the hypothesis space got wider.
     "probe_random_edits": dict(hypothesis_source="noise_repair", select_rule="eig",    use_bic=True,  use_update=True,  submit_mode="map"),
     "probe_oracle_edits": dict(hypothesis_source="oracle_repair",select_rule="eig",    use_bic=True,  use_update=True,  submit_mode="map"),
+  # the rule we hand the LLM, executed mechanically by a ranker with no world knowledge.
+  # It separates "the model knows something" from "the rule is worth following".
+    "probe_stat_edits":   dict(hypothesis_source="stat_repair",  select_rule="eig",    use_bic=True,  use_update=True,  submit_mode="map"),
+  # the true adjacency set, at any edit distance. Separates orientation failure from the
+  # edit budget: anything missing here cannot be fixed by proposing adjacencies better.
+    "probe_true_skeleton": dict(hypothesis_source="true_skeleton", select_rule="eig",   use_bic=True,  use_update=True,  submit_mode="map"),
+  # same proposer, corrected statistical interface: PC's separating sets instead of the
+  # full-order partial correlation, and the adjacency rule stated correctly.
+    "probe_sepset":       dict(hypothesis_source="llm_repair",   select_rule="eig",    use_bic=True,  use_update=True,  submit_mode="map", repair_evidence="sepset"),
+    "probe_sepset_noreserve": dict(hypothesis_source="llm_repair", select_rule="eig",  use_bic=True,  use_update=True,  submit_mode="map", repair_evidence="sepset", reserve_frac=0.0),
 
   # safety-net ablation: `reserve_frac=0` lets a proposal crowd PC's own orientations out
   # of the hypothesis space, so a wrong edit stops being free.
@@ -148,7 +158,7 @@ EPISODE_COLUMNS = [
     "proposed_raw", "proposed_valid_unique", "propose_repairs", "propose_rounds",
     "repair_remove", "repair_add", "propose_cached",
     "pc_skeleton_f1_ceiling", "pc_undirected_edges", "pc_directed_edges",
-    "reserve_frac", "edits_correct_remove", "edits_correct_add",
+    "reserve_frac", "edits_correct_remove", "edits_correct_add", "repair_evidence",
     "llm_calls", "llm_failed_calls", "llm_repair_calls", "prompt_tokens",
     "completion_tokens", "cached_tokens", "total_tokens", "cost_usd", "llm_latency_sec",
 ]
@@ -207,6 +217,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--reserve-frac", type=float, default=0.5,
                         help="share of the hypothesis budget reserved for orientations of PC's "
                              "unedited skeleton; 0 removes the guard that makes a wrong proposal free")
+    parser.add_argument("--repair-evidence", choices=("partial", "sepset"), default="partial",
+                        help="statistics handed to the skeleton proposer: 'partial' is the "
+                             "full-order partial correlation matrix (whose support is the moral "
+                             "graph, not the skeleton); 'sepset' is PC's own separating sets")
     parser.add_argument("--noise-edits-remove", type=int, default=4)
     parser.add_argument("--noise-edits-add", type=int, default=4)
     parser.add_argument("--max-skeleton-variants", type=int, default=10)
@@ -432,8 +446,11 @@ def main() -> int:
                 )
             else:
                 cache = None
+                evidence_mode = NEMCHUA_ARMS[item.arm].get("repair_evidence", args.repair_evidence)
                 if not args.no_share_proposals:
-                    cache_key = (item.level_id, item.seed, item.model)
+                    # arms that ask a *different* question must not share one cached answer
+                    cache_key = (item.level_id, item.seed, item.model) if evidence_mode == "partial" \
+                        else (item.level_id, item.seed, f"{item.model}#{evidence_mode}")
                     with cache_lock:
                         cache = proposal_caches.setdefault(cache_key, ProposalCache())
                         # only the arms that would have called the model need a proposal
@@ -444,6 +461,7 @@ def main() -> int:
                             cache.prime(*prior)
                 arm_cfg = dict(NEMCHUA_ARMS[item.arm])
                 reserve_frac = float(arm_cfg.pop("reserve_frac", args.reserve_frac))
+                arm_cfg.setdefault("repair_evidence", args.repair_evidence)
                 result = run_probe_episode(
                     instance=instance,
                     proposal_cache=cache,
@@ -466,6 +484,10 @@ def main() -> int:
                 )
 
             row.update(result.metrics)
+            row["repair_evidence"] = (
+                NEMCHUA_ARMS.get(item.arm, {}).get("repair_evidence", args.repair_evidence)
+                if item.arm in NEMCHUA_ARMS else ""
+            )
             row["status"] = "success"
             row["error"] = ""
             step_rows = result.steps

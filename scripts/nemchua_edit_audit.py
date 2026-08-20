@@ -43,7 +43,35 @@ COLUMNS = [
     "level", "seed", "model_tag", "d", "n_obs",
     "n_remove", "correct_remove", "n_add", "correct_add",
     "pc_fp", "pc_fn", "n_pc_adj", "n_non_adj", "chance_remove", "chance_add", "pc_skeleton_f1",
+    # additions that are wrong *in the specific way our prompt invites*: the pair are both
+    # parents of a common child, so their partial correlation given all others is nonzero
+    # even though they are not adjacent. See `moral_extras`.
+    "add_spouse", "add_other", "n_spouse_available", "chance_spouse",
 ]
+
+
+def moral_extras(dag) -> tuple[set, set]:
+    """The DAG's skeleton, and the co-parent pairs the moral graph adds to it.
+
+    The precision matrix of a linear-Gaussian DAG is supported on the *moral* graph, not
+    the skeleton. Our proposer prompt states the opposite, so every pair of parents of a
+    common child is a pair the prompt actively tells the model to add. Separating those
+    additions from the rest says whether a model's errors come from ignorance or from
+    following a false instruction correctly.
+    """
+    parents: dict[int, set[int]] = {c: set() for c in range(dag.num_nodes)}
+    for a, b in dag.edges:
+        parents[b].add(a)
+    skeleton = {canonical_undirected_edge(a, b) for a, b in dag.edges}
+    spouses = set()
+    for child in range(dag.num_nodes):
+        co = sorted(parents[child])
+        for x in range(len(co)):
+            for y in range(x + 1, len(co)):
+                edge = canonical_undirected_edge(co[x], co[y])
+                if edge not in skeleton:
+                    spouses.add(edge)
+    return skeleton, spouses
 
 
 def normalise(pairs, num_nodes: int, limit: int) -> list[tuple[int, int]]:
@@ -102,18 +130,22 @@ def audit(run_dir: Path) -> list[dict]:
             env = BenchmarkEnv(instance, np.random.default_rng(runtime_seed_for(level, seed)))
             obs = env.observe()
             pc_pdag = run_pc(obs, alpha)
-            truth = {canonical_undirected_edge(a, b) for a, b in instance.true_dag.edges}
+            truth, spouses = moral_extras(instance.true_dag)
             pc_adj = {canonical_undirected_edge(a, b) for a, b in pc_pdag.directed_edges} | set(
                 pc_pdag.undirected_edges
             )
-            cache[(level, seed)] = (truth, pc_adj, instance.true_dag.num_nodes)
-        truth, pc_adj, d = cache[(level, seed)]
+            cache[(level, seed)] = (truth, pc_adj, instance.true_dag.num_nodes, spouses)
+        truth, pc_adj, d, spouses = cache[(level, seed)]
 
         remove = [e for e in normalise(raw_remove, d, limit) if e in pc_adj]
         add = [e for e in normalise(raw_add, d, limit) if e not in pc_adj]
         pc_fp = pc_adj - truth
         pc_fn = truth - pc_adj
         n_non_adj = comb(d, 2) - len(pc_adj)
+        non_adjacent = {
+            (i, j) for i in range(d) for j in range(i + 1, d) if (i, j) not in pc_adj
+        }
+        spouse_available = len(non_adjacent & spouses)
         rows.append({
             "level": level, "seed": seed, "model_tag": model, "d": d, "n_obs": args["n_obs"],
             "n_remove": len(remove), "correct_remove": sum(1 for e in remove if e in pc_fp),
@@ -122,6 +154,10 @@ def audit(run_dir: Path) -> list[dict]:
             "n_pc_adj": len(pc_adj), "n_non_adj": n_non_adj,
             "chance_remove": round(len(pc_fp) / max(len(pc_adj), 1), 6),
             "chance_add": round(len(pc_fn) / max(n_non_adj, 1), 6),
+            "add_spouse": sum(1 for e in add if e not in truth and e in spouses),
+            "add_other": sum(1 for e in add if e not in truth and e not in spouses),
+            "n_spouse_available": spouse_available,
+            "chance_spouse": round(spouse_available / max(n_non_adj, 1), 6),
             "pc_skeleton_f1": round(2 * len(pc_adj & truth) / max(len(pc_adj) + len(truth), 1), 6),
         })
     return rows
@@ -153,10 +189,15 @@ def main() -> int:
                 + (1 - share_add) * float(np.mean([r["chance_remove"] for r in sub]))
             )
             precision = correct / max(proposed, 1)
+            wrong_adds = sum(r["add_spouse"] + r["add_other"] for r in sub)
+            spouse_share = sum(r["add_spouse"] for r in sub) / max(wrong_adds, 1)
+            spouse_chance = float(np.mean([r["chance_spouse"] for r in sub]))
             print(
                 f"[{run_dir.name}] {model:18s} n={len(sub):3d} proposed={proposed:4d} "
                 f"correct={correct:3d} precision={precision:.3f} chance={chance:.3f} "
-                f"lift={precision / max(chance, 1e-9):.2f}x"
+                f"lift={precision / max(chance, 1e-9):.2f}x | "
+                f"wrong-add spouse share={spouse_share:.3f} (chance {spouse_chance:.3f}, "
+                f"{spouse_share / max(spouse_chance, 1e-9):.1f}x)"
             )
         print(f"          -> {path}")
     return 0
