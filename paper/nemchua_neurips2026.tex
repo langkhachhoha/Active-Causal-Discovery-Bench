@@ -57,7 +57,7 @@ unknown causal graph. \nem{} confines the LLM to a single job --- proposing whic
 statistical estimator probably got wrong --- and hands every numerical decision to exact
 machinery: a Bayesian score ranks the resulting candidate graphs, expected information gain picks
 each experiment, and a closed-form likelihood updates the belief. Auditing the proposals against
-ground truth, we find they are barely better than guessing: across $960$ episodes
+ground truth, we find they are barely better than guessing: over $40$ instances
 \texttt{gpt-4o-mini} proposes $236$ edits of which $11$ are correct ($4.7\%$, $1.23\times$ the
 rate of an uninformed editor). Yet the same system reaches $0.950$ directed-edge F1 against
 $0.857$ for the strongest classical active baseline ($+0.093$, $p{=}0.0008$, paired) and $0.000$
@@ -287,7 +287,7 @@ an instance every ablation arm replays one shared proposal call, so arms differ 
 component under test and not in provider non-determinism. Error bars are $95\%$ CIs, over
 instances for arm means and over paired differences for contrasts; pairwise claims use two-sided
 Wilcoxon signed-rank tests with win/loss/tie counts, because ties are frequent and a $p$-value
-alone hides them. The main study is $960$ episodes.
+alone hides them. The main study is $28$ arm-model cells on $40$ instances, $1{,}120$ episodes.
 
 \section{Results}
 \label{sec:results}
@@ -316,7 +316,7 @@ $0.858$. It is ahead at every experiment count, and continues to buy accuracy wh
 has stopped.
 
 \begin{table}[t]
-\caption{Main results. $40$ paired instances per arm, mean $\pm$ $95\%$ CI, $960$ episodes.
+\caption{Main results. $40$ paired instances per arm, mean $\pm$ $95\%$ CI, $1{,}120$ episodes.
 Arms in the middle block share \nem's entire decision layer and differ only in where candidate
 graphs come from. Tokens and calls are per episode.}
 \label{tab:main}
