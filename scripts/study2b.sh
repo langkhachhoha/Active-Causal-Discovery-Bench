@@ -13,8 +13,29 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+STAGE="${1:-smoke}"
 ENV_NAME="${ACDB_ENV:-acdb-active}"
-PY="$(conda run -n "$ENV_NAME" python -c 'import sys; print(sys.executable)' 2>/dev/null || echo python)"
+# Resolve the interpreter without assuming anything about the caller's environment: a tmux
+# session attached to an already-running server does not inherit `conda activate`, so
+# neither `python` nor `conda` is guaranteed to be the right one (or on PATH at all).
+#   ACDB_PY=/path/to/python   overrides everything
+if [ -n "${ACDB_PY:-}" ]; then
+    PY="$ACDB_PY"
+elif python -c 'import numpy, causallearn' >/dev/null 2>&1; then
+    PY="$(command -v python)"
+elif command -v conda >/dev/null 2>&1; then
+    PY="$(conda run -n "$ENV_NAME" python -c 'import sys; print(sys.executable)' 2>/dev/null || echo python)"
+else
+    PY="python"
+fi
+if ! "$PY" -c 'import numpy, causallearn' >/dev/null 2>&1; then
+    echo "[study2b] '$PY' cannot import numpy/causallearn." >&2
+    echo "[study2b] Run with an explicit interpreter, e.g.:" >&2
+    echo "          ACDB_PY=\$(which python) bash scripts/study2b.sh $STAGE" >&2
+    exit 1
+fi
+echo "[study2b] interpreter: $PY"
+mkdir -p logs
 CORE_MODELS="${ACDB_MODELS:-qwen3-coder-30b,gpt-4o-mini}"
 SWEEP_MODELS="${ACDB_SWEEP_MODELS:-qwen3-coder-30b,gpt-4o-mini,gpt-5.4-mini,haiku-4.5,gemini-3-flash}"
 WORKERS="${ACDB_WORKERS:-12}"
@@ -22,7 +43,6 @@ PERM_WORKERS="${ACDB_PERM_WORKERS:-24}"
 DRAWS="${ACDB_DRAWS:-200}"
 SRC_ROOT="${ACDB_SRC_ROOT:-study2_new}"     # where the recorded proposals live
 OUT_ROOT="${ACDB_OUT_ROOT:-study2b}"
-STAGE="${1:-smoke}"
 
 # The full ladder, now with two extra rungs: a data-only ranker that executes our own
 # stated rule, and the true adjacency set at any edit distance.

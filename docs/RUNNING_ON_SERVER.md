@@ -185,27 +185,30 @@ chúng replay lại đúng những proposal đã ghi trong `events.jsonl`.
 
 `perm` là stage quan trọng nhất và tốn $0, nên nếu chỉ chạy được một thứ thì chạy nó.
 
-Treo cả ba lên tmux bằng một lệnh duy nhất:
+Ba lệnh tmux, mỗi stage một session. Đang ở trong env `acdb-active` thì chạy thẳng:
 
 ```bash
-cd ~/Active-Causal-Discovery-Bench && git pull origin main && mkdir -p logs
+cd ~/Active-Causal-Discovery-Bench && git pull origin main
 
-tmux new -d -s nemchua "bash -lc '
-  cd ~/Active-Causal-Discovery-Bench &&
-  conda activate acdb-active &&
-  bash scripts/study2b.sh smoke   2>&1 | tee logs/s2b_smoke.log &&
-  bash scripts/study2b.sh ranker  2>&1 | tee logs/s2b_ranker.log &&
-  bash scripts/study2b.sh sepset  2>&1 | tee logs/s2b_sepset.log &&
-  ACDB_PERM_WORKERS=24 bash scripts/study2b.sh perm 2>&1 | tee logs/s2b_perm.log
-  echo \"=== DONE rc=\$? \$(date) ===\"; exec bash'"
+tmux new -d -s rank "ACDB_PY=$(which python) bash scripts/study2b.sh ranker 2>&1 | tee logs/s2b_ranker.log; exec bash"
+tmux new -d -s seps "ACDB_PY=$(which python) bash scripts/study2b.sh sepset 2>&1 | tee logs/s2b_sepset.log; exec bash"
+tmux new -d -s perm "ACDB_PY=$(which python) ACDB_PERM_WORKERS=24 bash scripts/study2b.sh perm 2>&1 | tee logs/s2b_perm.log; exec bash"
 ```
 
-- Xem tiến độ: `tmux attach -t nemchua` — thoát bằng `Ctrl-b` rồi `d`
-- Liếc nhanh: `tmux capture-pane -pt nemchua | tail -20`
-- Dừng: `tmux kill-session -t nemchua`
+`$(which python)` được shell hiện tại bung ra **trước khi** tmux chạy, nên đường dẫn tuyệt đối
+được nhúng thẳng vào lệnh. Đây là điểm mấu chốt: nếu tmux server đã chạy sẵn từ trước, session
+mới **không** thừa hưởng `conda activate`, và đó là lý do lệnh gộp một dòng trước đây hỏng.
 
-`smoke` chạy đầu tiên và `&&` nối chuỗi, nên nếu smoke hỏng thì ba stage sau không chạy và
-không tốn tiền. Mọi stage đều `--resume`: kill giữa chừng rồi chạy lại là đi tiếp từ chỗ dở.
+`ranker` và `perm` không gọi API nên chạy song song với `sepset` thoải mái. Muốn chắc chắn thì
+chạy `bash scripts/study2b.sh smoke` (~3 phút, ~$0.05) trước.
+
+- Xem tiến độ: `tmux attach -t rank` (hoặc `seps`, `perm`) — thoát bằng `Ctrl-b` rồi `d`
+- Liếc nhanh: `tmux capture-pane -pt perm | tail -20`
+- Xem cả ba: `tmux ls`
+- Dừng: `tmux kill-session -t perm`
+
+Mọi stage đều `--resume`: kill giữa chừng rồi chạy lại là đi tiếp từ chỗ dở, không tính tiền lại
+phần đã xong. Script tự kiểm tra interpreter trước khi chạy và báo lỗi rõ ràng nếu sai env.
 
 Chỉnh số worker bằng biến môi trường (mặc định `ACDB_WORKERS=12`, `ACDB_PERM_WORKERS=24`,
 `ACDB_DRAWS=200`). Nếu server ít core thì đặt `ACDB_PERM_WORKERS` bằng số core thật.
