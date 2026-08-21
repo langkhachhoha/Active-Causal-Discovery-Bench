@@ -1261,6 +1261,7 @@ exactly equals its null mean. Cohorts differ in instances and are not comparable
 \label{tab:perm}
 \centering
 \small
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{llrrrrrr}
 \toprule
 cohort & proposer & LLM & null & $\Delta$ & pctile & $p$ & W/L/T \\
@@ -1278,7 +1279,7 @@ models, $n{=}60$ & \texttt{qwen3-30b}     & $0.836$ & $0.809$ & $+0.027$ & $0.56
 \midrule
 models, $n{=}300$ & \textbf{pooled}       & $0.941$ & $0.924$ & $+0.017$ & $0.562$ & $<10^{-4\,***}$ & 228/55/17 \\
 \midrule
-corrected prompt, $n{=}60$ & \textbf{pooled} & $0.815$ & $0.807$ & $+0.008$ & $0.515$ & $0.0076^{**}$ & 167/107/26 \\
+corrected, $n{=}60$ & \textbf{pooled} & $0.815$ & $0.807$ & $+0.008$ & $0.515$ & $0.0076^{**}$ & 167/107/26 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1373,7 +1374,7 @@ perfect edits           & $0.999$ & $1.000$ & $1.000$ & $+0.097^{***}$ \\
 \end{table}
 
 There is one place the ranker loses, and it is informative: at $d{=}12$ it scores $0.858$ against
-the LLM's $0.922$ (Appendix~\ref{app:saturation}).
+the LLM's $0.930$ (Appendix~\ref{app:saturation}).
 
 \section{Enumeration saturation at \texorpdfstring{$d=12$}{d=12}}
 \label{app:saturation}
@@ -1381,7 +1382,7 @@ the LLM's $0.922$ (Appendix~\ref{app:saturation}).
 At $d{=}12$ the ordering of the whole ladder inverts, and the cause is the candidate budget rather
 than the proposals. Handing the pipeline the \emph{true} skeleton gives skeleton F1 $0.991$ but a
 best-available F1 inside the hypothesis set of only $0.918$, and a final score of $0.883$. Keeping
-PC's own skeleton (F1 $0.941$) yields a best-available F1 of $0.941$ and a final score of $0.922$.
+PC's own skeleton (F1 $0.941$) yields a best-available F1 of $0.939$ and a final score of $0.930$.
 
 A better skeleton is being punished. The reason is that $M=48$ candidates cannot represent the
 orientation space of a $12$-node skeleton: with more true adjacencies there are more orientations to
@@ -1416,10 +1417,11 @@ cohort): PC makes at most four adjacency errors, so the budget never binds, and 
 oracle leaves on the table is orientation error. On the published structures the budget binds hard
 --- $0.962$ against $0.890$ at $n_{\mathrm{obs}}{=}60$, $0.966$ against $0.921$ at $300$ --- because
 those graphs are denser and PC makes more than four errors. This qualifies a claim we made in the
-first draft: on \texttt{sachs} the oracle's low score is \emph{not} purely an orientation failure.
-With four edits it reaches $0.63$; with the true skeleton it reaches $0.83$; the remaining $0.17$ is
-orientation. Both mechanisms are present and the earlier attribution to sampling alone was too
-strong.
+first draft: on \texttt{sachs} the oracle's low score is \emph{not} mainly an orientation failure.
+Perfect four-edit repair reaches $0.467$, barely above the $0.411$ of proposing nothing; the true
+skeleton reaches $0.828$. So $0.36$ of the gap is adjacency error the budget cannot express and
+$0.17$ is orientation error that no adjacency information removes. The earlier attribution to
+orientation sampling alone was wrong about the larger term.
 
 \section{Limitations}
 \label{app:limitations}
