@@ -9,6 +9,7 @@
 \usepackage{url}
 \usepackage{booktabs}
 \usepackage{multirow}
+\usepackage{enumitem}
 \usepackage{amsfonts}
 \usepackage{amsmath}
 \usepackage{amssymb}
@@ -51,22 +52,23 @@
 \begin{abstract}
 Scientific agents increasingly pair a generative proposer with a mechanical verifier, but a verifier
 good enough to rescue weak proposals also makes end-to-end accuracy a poor measure of what the
-proposer contributed. We study this attribution problem in active causal discovery through \nem{},
+proposer contributed. We audit that attribution problem in active causal discovery through \nem{},
 which asks an LLM to flag likely errors in a PC-estimated skeleton and delegates every remaining
-decision to a bounded model-based pipeline: candidates receive BIC weights, interventions are chosen
-by Monte Carlo expected information gain, and the weights are updated by exact interventional
-likelihoods. \nem{} reaches $0.956$ directed-edge F1 on $80$ paired synthetic instances against
-$0.874$ for PC+greedy+Meek, the strongest external baseline we include. Controls dissolve most of
-that apparent contribution. Replacing the model with an editor that draws edits uniformly at random
-costs almost nothing, and across five proposers a $4.2\times$ spread in edit precision moves final
-F1 by $0.026$ without preserving the ordering. Removing the likelihood update or the candidate-budget
-guard costs far more than changing the proposer, and the guard is exactly free for a perfect
-proposer. Auditing the proposals explains why: our prompt stated that a nonzero partial correlation
-given all other variables implies adjacency, which is false for a DAG, and the models' wrong
-additions concentrate on precisely the co-parent pairs that error invites --- more so the more
-capable the model. Capability was being spent on complying with a misspecified interface. Random,
-no-proposal, and oracle controls, together with an audit of the proposals themselves, are what a
-propose-and-verify result needs before its success can be credited to its generator.
+decision to a bounded model-based pipeline. \nem{} reaches $0.954$ directed-edge F1 on $80$ paired
+synthetic instances against $0.874$ for PC+greedy+Meek. Three controls locate that gain. First, a
+random editor matched to each model's \emph{realized} edit counts, run $200$ times per instance,
+places the LLM at percentile $0.53$--$0.59$ of its own null: proposal content does carry information
+beyond proposal volume, and a cap-matched control understates it. Second, a two-line ranker that
+executes the rule we gave the proposer, with no world knowledge, beats every model in every cohort
+by $0.021$--$0.028$ F1 and puts the truth in the hypothesis set $88\%$ of the time against the LLM's
+$68\%$. Third, an audit explains the flat capability curve: our prompt asserted that a nonzero
+partial correlation given all other variables implies adjacency, which is false for a DAG, and the
+models' wrong additions concentrate on exactly the co-parent pairs that error invites --- more so
+the more capable the model ($1.1\times$ chance to $6.0\times$, $\rho=0.90$). Stating the rule
+correctly removes the artifact without recovering accuracy, because the false rule exposed the moral
+graph, which PC discards, while the correct one asks the model to redo work PC already did. Both the
+proposer and the interface it is given must be controlled before a propose-and-verify result can be
+credited to its generator.
 \end{abstract}
 
 \section{Introduction}
@@ -80,13 +82,16 @@ attribution. An end-to-end comparison against a baseline that contains neither c
 cannot reveal whether the model supplied useful hypotheses, whether the verifier supplied a better
 decision rule, or whether the interaction between them mattered.
 
-Resolving that ambiguity requires a counterfactual that is often absent from evaluations of
-scientific agents: the downstream machinery must remain fixed while the learned proposer is replaced
-by a source with no domain knowledge. If both systems perform similarly, the result may still
-validate the architecture, but it cannot support the stronger claim that the model understood the
-domain. Our experiments instantiate this comparison directly and then trace the proposal signal
-through every subsequent stage to determine where, if anywhere, model-specific information changes
-the final answer.
+Resolving that ambiguity requires counterfactuals that are usually absent from evaluations of
+scientific agents. Three of them turn out to matter, and each changed our conclusion. The first is a
+random proposer matched to what the model actually proposes rather than to what it is allowed to
+propose; matched to the cap, it looked as good as the LLM, and matched to realized behaviour it does
+not. The second is a proposer with no world knowledge that mechanically executes the instruction the
+LLM was given; it beats every model we tested. The third is an audit of the instruction itself,
+which in our case asserted a criterion that is false for a DAG --- and which the strongest models
+followed most faithfully. Together these say something a single end-to-end number cannot: the
+proposal channel carries real signal, the language model captures only part of it, and a large part
+of what looks like model behaviour is the shape of the interface we built.
 
 Active causal discovery provides an unusually transparent setting for this audit because its central
 ambiguity has an experimental resolution. Observational data may leave $A \to B$ indistinguishable
@@ -112,10 +117,16 @@ have changed had the language model contributed less informative proposals.
 remaining candidate search, scoring, experiment selection, and likelihood update mechanical. This
 turns the path from proposal to final graph into a sequence of measurable bottlenecks
 (Section~\ref{sec:method}).
-\item \textbf{Controls that reassign the credit.} We compare no edits, uniformly random edits,
-LLM edits, and oracle edits inside the same downstream architecture. The system performs well, but
-the random control nearly matches the LLMs, while decision-layer ablations explain far more of the
-final accuracy than model choice (Sections~\ref{sec:main}--\ref{sec:mechanism}).
+\item \textbf{Controls that reassign the credit.} Inside one fixed downstream architecture we
+compare no edits, random edits matched to realized proposal volume over $200$ draws per instance,
+LLM edits, a data-only ranker, and oracle edits. The LLM beats its own matched null but loses to
+the ranker by more than it wins by, and decision-layer ablations dominate both
+(Sections~\ref{sec:headline}--\ref{sec:credit}).
+\item \textbf{An interface-level explanation for the flat capability curve.} Auditing every
+proposed edit against the true graph shows that models' errors concentrate on the co-parent pairs
+our misspecified adjacency rule endorses, increasingly so with capability ($\rho=0.90$). Correcting
+the rule removes the artifact but not the deficit, for a reason worth stating: the false rule
+exposed the moral graph, which the front-end discards (Section~\ref{sec:mechanism}).
 \item \textbf{A scoped account of when proposal content may matter.} Sample-size sweeps and an
 exploratory semantic condition identify data scarcity and meaningful prompt context as plausible
 boundary conditions. We also state the statistical and control-design limitations that prevent
@@ -267,9 +278,15 @@ same models raw data and control of the full loop. The proposal-content controls
 decision layer while changing only the source of its search neighborhood. The \texttt{no-edits}
 arm uses PC's original skeleton, \texttt{random-edits} samples up to four removals from PC
 adjacencies and four additions from currently non-adjacent pairs, and \texttt{perfect-edits} applies
-up to four ground-truth errors of each kind. Because the random arm matches the permitted cap rather
-than either model's realized edit count and uses a single seeded draw per instance, it should be read
-as a weak shared control rather than a per-model randomization null. Additional arms supply PC's
+up to four ground-truth errors of each kind. The cap-matched random arm is a weak shared control
+rather than a per-model null, so Section~\ref{sec:credit} adds a per-model one: the same editor
+constrained to each proposal's realized counts, drawn $200$ times per instance. Two further arms
+carry no model at all. \texttt{stat-edits} ranks PC's adjacencies by how weak their full-order
+partial correlation is and the non-adjacent pairs by how strong theirs is, taking the top of each
+list --- the instruction we give the proposer, executed mechanically. \texttt{true-skeleton} hands
+over the true adjacency set at any edit distance, separating an edit budget that is too small from
+an orientation problem no adjacency information can solve. A final pair of arms reruns the proposer
+under a corrected statistical interface (Section~\ref{sec:mechanism}). Additional arms supply PC's
 equivalence class, complete DAGs written by the LLM, or random DAGs. Decision-layer ablations replay
 the recorded LLM proposal and generally preserve candidate membership; the \texttt{no-guard}
 ablation is the exception because its purpose is to let edited candidates compete for every slot.
@@ -296,271 +313,252 @@ spurious adjacency, and an addition is correct when PC omitted a genuine one, so
 \section{Results}
 \label{sec:results}
 
-\subsection{A strong system, followed by the control it needs}
-\label{sec:main}
+\subsection{A strong system, and where its accuracy comes from}
+\label{sec:headline}
 
-Viewed only at the system boundary, the main comparison in Table~\ref{tab:main} resembles a
-conventional success story. \nem{} reaches $0.956$ directed F1 with \texttt{gpt-4o-mini} and $0.953$
-with \texttt{qwen3-30b}, compared with $0.874$ for \texttt{PC+greedy+Meek}, the strongest external
-baseline included here. For \texttt{gpt-4o-mini}, the paired gain is $0.082$ with a $95\%$ confidence
-interval of $[0.041,0.127]$, and the trajectory in Figure~\ref{fig:main}(b) passes the baseline's
-full-budget score after only two experiments. Despite this strong pooled result, the advantage is
-concentrated at $d{=}4$, where PC produces its weakest skeleton, and falls to
-$0.017$--$0.030$ when that level is excluded. The per-level results in
-Appendix~\ref{app:scaling} therefore suggest that \nem{} repairs a pronounced local failure of the
-statistical front-end rather than improving active discovery to the same degree across regimes.
-
-The weak end-to-end rows serve a narrower purpose by revealing how strongly performance depends on
-the interface through which a model acts. In all $80$ \texttt{gpt-4o-mini} episodes, the model
-submits no directed edges even though it proposes an average of $2.79$ undirected edges. Every tool
-call is valid and no parser repair is triggered, which rules out silent schema rejection and instead
-indicates a systematic choice to leave proposed adjacencies unresolved. Asking the same models for
-complete DAGs improves on this behavior but remains roughly $0.30$ F1 below the edit interface.
-These comparisons establish that constraining model authority can improve the assembled system;
-they do not, by themselves, establish that the proposal content is informative. The attribution
-claim therefore rests on the controlled replacements considered next rather than on the unusually
-weak end-to-end baseline.
+Table~\ref{tab:main} reports every arm on the same $80$ instances. \nem{} reaches $0.954$ directed-edge
+F1, against $0.874$ for \texttt{PC+greedy+Meek}, the strongest external baseline we include. Read on
+its own, that gap is the kind of number a propose-and-verify paper reports as evidence that the
+proposer works. The rest of this section takes it apart.
 
 \begin{table}[t]
-\caption{Main results. $80$ paired instances per arm; directed F1 is reported as mean $\pm$ $95\%$
-CI over instances, and the remaining columns report means only. Arms in the middle
-block share \nem's decision layer and differ in the source of candidate graphs. The random editor
-uses one seeded, cap-matched draw per instance, not a per-model realized-count match. Tokens and
-calls are per episode.}
+\caption{Main results. $80$ paired instances per arm; directed F1 is mean $\pm$ $95\%$ CI over
+instances, other columns are means. Every arm in the middle block shares \nem{}'s decision layer and
+differs only in where candidate skeletons come from. \texttt{random edits (cap)} draws the maximum
+four removals and four additions; the count-matched version of the same control is in
+Table~\ref{tab:perm}. Truth-in-$\mathcal{H}$ and best-F1-in-$\mathcal{H}$ describe the candidate set
+before any experiment runs.}
 \label{tab:main}
 \centering
 \small
-\setlength{\tabcolsep}{4.2pt}
-\begin{tabular}{llcccccc}
+\begin{tabular}{lrrrrrr}
 \toprule
-Arm & Model & directed F1 & skel.\ F1 & SHD & interv. & tokens & calls \\
+arm & directed F1 & skel. F1 & SHD & interv. & truth in $\mathcal{H}$ & best in $\mathcal{H}$ \\
 \midrule
-\multicolumn{8}{l}{\emph{reference and baselines}}\\
-ground-truth ceiling & N/A & $1.000 \pm 0.000$ & $1.000$ & $0.00$ & $0.00$ & $0$ & $0$ \\
-PC $+$ greedy & N/A & $0.868 \pm 0.041$ & $0.947$ & $1.14$ & $1.98$ & $0$ & $0$ \\
-PC $+$ greedy $+$ \textsc{Meek} & N/A & $0.874 \pm 0.040$ & $0.947$ & $1.02$ & $1.81$ & $0$ & $0$ \\
-LLM end-to-end & qwen3-30b & $0.202 \pm 0.038$ & $0.385$ & $9.86$ & $2.71$ & $50{,}924$ & $3.7$ \\
-LLM end-to-end & gpt-4o-mini & $0.000 \pm 0.000$ & $0.138$ & $8.85$ & $2.65$ & $33{,}893$ & $3.6$ \\
+ground-truth ceiling      & $1.000 \pm 0.000$ & $1.000$ & $0.00$ & $0.00$ & --- & --- \\
 \midrule
-\multicolumn{8}{l}{\emph{where the skeleton edits come from (decision layer held fixed)}}\\
-random DAGs & N/A & $0.298 \pm 0.050$ & $0.547$ & $8.82$ & $0.25$ & $0$ & $0$ \\
-LLM writes whole DAGs & gpt-4o-mini & $0.649 \pm 0.050$ & $0.928$ & $2.74$ & $0.62$ & $1{,}339$ & $1.0$ \\
-LLM writes whole DAGs & qwen3-30b & $0.669 \pm 0.059$ & $0.918$ & $2.73$ & $1.23$ & $2{,}315$ & $1.1$ \\
-PC equivalence class & N/A & $0.868 \pm 0.043$ & $0.947$ & $1.00$ & $1.81$ & $0$ & $0$ \\
-no edits (PC skeleton) & N/A & $0.901 \pm 0.036$ & $0.947$ & $0.88$ & $1.91$ & $0$ & $0$ \\
-\textbf{random edits} & \textbf{none} & $\mathbf{0.951 \pm 0.022}$ & $0.967$ & $0.68$ & $2.41$ & $\mathbf{0}$ & $\mathbf{0}$ \\
-\textbf{\nem} & qwen3-30b & $\mathbf{0.953 \pm 0.018}$ & $0.963$ & $0.61$ & $2.46$ & $1{,}807$ & $1.0$ \\
-\textbf{\nem} & gpt-4o-mini & $\mathbf{0.956 \pm 0.018}$ & $0.969$ & $0.61$ & $2.41$ & $1{,}114$ & $1.0$ \\
-oracle edits (main ceiling) & N/A & $0.999 \pm 0.003$ & $0.999$ & $0.01$ & $2.01$ & $0$ & $0$ \\
+\texttt{PC+greedy}        & $0.868 \pm 0.041$ & $0.947$ & $1.14$ & $1.98$ & --- & --- \\
+\texttt{PC+greedy+Meek}   & $0.874 \pm 0.040$ & $0.947$ & $1.02$ & $1.81$ & --- & --- \\
+\midrule
+no edits                  & $0.901 \pm 0.036$ & $0.947$ & $0.88$ & $1.91$ & $0.487$ & $0.944$ \\
+random edits (cap)        & $0.951 \pm 0.022$ & $0.967$ & $0.68$ & $2.41$ & $0.738$ & $0.972$ \\
+\nem{} (LLM edits)        & $0.954 \pm 0.016$ & $0.966$ & $0.61$ & $2.44$ & $0.681$ & $0.966$ \\
+statistical ranker        & $\mathbf{0.975 \pm 0.014}$ & $0.983$ & $0.35$ & $2.41$ & $0.875$ & $0.985$ \\
+perfect edits (ceiling)   & $0.999 \pm 0.003$ & $0.999$ & $0.01$ & $2.01$ & $1.000$ & $1.000$ \\
+\midrule
+LLM whole-graph proposals & $0.658 \pm 0.049$ & $0.923$ & $2.76$ & $0.92$ & $0.150$ & $0.690$ \\
+LLM end-to-end agent      & $0.101 \pm 0.019$ & $0.261$ & $9.36$ & $2.68$ & --- & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+The first thing to establish is that most of the system's accuracy is not attributable to the
+proposer at all. Removing the interventional likelihood update costs $0.285$ F1; replacing expected
+information gain with random targeting costs $0.062$; removing the candidate-budget guard costs
+$0.051$; removing the BIC weights costs $0.021$ (all $p<10^{-4}$, Figure~\ref{fig:credit}c). These
+are one-at-a-time sensitivities rather than an additive decomposition --- the components interact,
+and removing the update also makes every subsequent experiment uninformative --- so they do not sum
+to the total. What they establish is a ranking: the decision layer is worth far more than anything
+the proposal layer does, and a difference between proposers has to be read against that scale.
+
+\paragraph{The guard, and why a wrong proposal is nearly free.}
+Half the hypothesis budget is reserved for orientations of PC's unedited skeleton. That reservation
+is worth $+0.051$ to the LLM arm and $+0.056$ to the random-edit arm, and \emph{exactly zero} to a
+perfect proposer ($p=1.0$), which is the signature of a safety net: it pays only when the proposal
+is wrong. Without it, truth-in-hypothesis-set falls from $0.68$ to $0.23$ and accuracy falls to
+$0.903$, level with proposing nothing at all. A system built this way is deliberately insensitive to
+its generator, which is exactly what makes end-to-end accuracy uninformative about the generator.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{nemchua_f2_main.pdf}
-\caption{(a) Arm means over $80$ paired instances. The random-edit control lies within $0.005$ of
-both language models. (b) Accuracy after each experiment, carried forward once an arm stops;
-\nem{} passes the included classical baseline's full-budget score on its second experiment.}
+\caption{Every arm shares the instances, the decision layer and the experimental budget; only the
+source of candidate skeletons differs. \texttt{random edits, count-matched} is the mean over $200$
+random editors constrained to each model's own realized edit counts, not to the four-edit cap.
+\texttt{statistical ranker} has no access to a language model. Bars are means over instances with
+$95\%$ confidence intervals; the left cohort is the main table, the right the five-model
+data-poor sweep.}
 \label{fig:main}
 \end{figure}
 
-\subsection{Following proposal quality through the pipeline}
+\subsection{Proposal content matters --- and a two-line ranker exploits it better}
 \label{sec:credit}
 
-The attribution changes when \texttt{random-edits} replaces the LLM while leaving the entire
-downstream pipeline intact. This deliberately simple editor reaches $0.951$, effectively level with
-both language models, and all three edit arms improve on the unedited skeleton. Their common gain
-suggests that much of the benefit comes from widening the search neighborhood around PC rather than
-from selecting especially informative corrections. The oracle-edit arm continues to improve at
-graph sizes where random and LLM edits do not, so adjacency repair remains a potentially valuable
-channel; the learned proposers simply capture little of the available advantage under this
-interface. Because the random arm is matched only to the edit cap and is represented by one seeded
-draw, it cannot identify the exact marginal effect of model content. It supports the narrower but
-still consequential conclusion that a simple model-free proposer reproduces the observed LLM score
-at the implemented edit volume.
+\paragraph{A control matched to what each model actually proposes.}
+Our first draft compared \nem{} against a random editor drawing the maximum four removals and four
+additions. That control is matched to the \emph{cap}, not to behaviour: models differ by more than
+a factor of two in how much they propose (Appendix~\ref{app:edits}), and the models that propose
+least were being compared against a control proposing most. We therefore rebuilt the control per
+instance and per model at each proposal's realized counts after sanitization, and ran it $200$ times,
+so that every LLM proposal is placed inside the null distribution generated by its own volume.
 
-Evidence from the five-model sweep reinforces this interpretation without requiring the random
-control to carry the entire argument. Edit precision changes by a factor of $4.2$ across models,
-but downstream F1 remains within a $0.026$ band and no longer preserves the proposal-quality ordering
-(Figure~\ref{fig:credit}(b)). The better models are demonstrably more selective and accurate at the
-task assigned to them, which means that the flat final scores cannot be explained by an absence of
-variation in proposal quality. Instead, the result indicates that the decision layer is insensitive
-to much of the variation that enters through its proposal interface.
+The conclusion changes. At matched counts the null falls from $0.951$ to $0.939$ on the main cohort,
+and the LLM sits at percentile $0.532$ of its own null ($+0.014$ F1, $103$ wins / $27$ losses / $30$
+ties, $p<10^{-4}$). The effect is larger where data are scarce: percentile $0.591$ at
+$n_{\mathrm{obs}}{=}60$ ($+0.030$) and $0.562$ at $n_{\mathrm{obs}}{=}300$ ($+0.017$), both
+$p<10^{-4}$, and every one of the five models beats its own null in both regimes
+(Figure~\ref{fig:credit}a). Proposal \emph{content} is therefore worth something beyond proposal
+volume. The cap-matched control we reported first understated this, and we report the correction
+rather than the original claim.
 
-Because every intermediate stage is observable, we can identify where the pipeline loses sensitivity
-to proposal quality. Stronger proposers recover more missing PC adjacencies and place the true DAG
-in the candidate set more often, so their
-advantage survives the initial expansion of the hypothesis space. Downstream, however, the best
-directed graph available in the bounded set improves only modestly, and the graph ultimately selected
-does not consistently reach even that within-set ceiling. With only $60$ observational rows, BIC
-must discriminate among $48$ fitted candidates using weak evidence, after which a small intervention
-budget must resolve the remaining uncertainty. The pipeline therefore separates two notions of
-proposal value: better edits improve \emph{coverage} by admitting more relevant alternatives, but
-they improve final accuracy only when scoring and experimental design can \emph{convert} that
-coverage into a different decision. In these experiments, most of the proposal signal is lost during
-that conversion.
+\paragraph{But the rule we gave the model is worth more than the model.}
+The size of that effect is the point. We added a proposer with no world knowledge at all: rank PC's
+adjacencies by how weak their full-order partial correlation is, rank the non-adjacent pairs by how
+strong theirs is, take the top of each list. This is the instruction in our own prompt, executed
+mechanically in two lines of code.
+
+It beats every language model in every cohort where the exact posterior can be enumerated: $0.976$
+against $0.954$ on the main cohort ($-0.021$ for the LLM, $p=0.003$), $0.861$ against $0.832$ at
+$n_{\mathrm{obs}}{=}60$ ($p<10^{-3}$), and $0.967$ against $0.939$ at $n_{\mathrm{obs}}{=}300$
+($p<10^{-4}$). It is not a marginal difference in the same direction as the models: it is larger
+than the LLM's own margin over the matched-random control, and it runs the other way. The mechanism
+is visible upstream --- the ranker puts the true DAG in the hypothesis set on $87.5\%$ of instances
+against the LLM's $68.1\%$, and lifts the best available F1 in the set from $0.967$ to $0.985$.
+
+Figure~\ref{fig:when}a shows the two proposers against sample size. The LLM's advantage over
+proposing nothing decays from $+0.044$ at $n_{\mathrm{obs}}{=}40$ to $-0.003$ at $1000$, the
+crossover our first draft reported. The ranker's does not decay: it holds $+0.043$ at
+$n_{\mathrm{obs}}{=}1000$. The proposal channel stays open at every sample size we tested. What
+changes with sample size is whether the model uses it.
+
+\paragraph{Capability does not close the gap.}
+Across five proposers spanning roughly two orders of magnitude in price, edit precision varies by a
+factor of $4.2$ ($0.079$ to $0.328$) while final F1 varies by $0.026$, and the ordering is not
+preserved ($\rho=0.30$, n.s., Figure~\ref{fig:credit}b). Every model in that sweep falls below the
+ranker. Whatever separates a weak proposer from a strong one is not what this task rewards.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{nemchua_f3_credit.pdf}
-\caption{(a) The proposal-content ladder in the main regime: random edits are indistinguishable
-from LLM edits, and both fall well short of oracle edits. (b) Five proposers at
-$n_{\mathrm{obs}}{=}60$; the dashed line is the random-edit control. (c) One-at-a-time ablation
-effects; these are sensitivities, not an additive decomposition, and do not sum. What each component is
-worth, paired, in the main regime.}
+\caption{(a) Where each proposal falls inside the null distribution generated by $200$ random
+proposals of exactly its own size; $0.5$ is the null and stars are paired Wilcoxon tests on the F1
+difference. (b) Edit precision against final accuracy across five proposers, with the model-free
+ranker for scale. (c) One-at-a-time ablation effects on the main cohort. These are sensitivities,
+not an additive decomposition, and do not sum.}
 \label{fig:credit}
 \end{figure}
 
+\subsection{The interface, not the model, is the binding constraint}
 \label{sec:mechanism}
-Once proposal identity becomes nearly interchangeable, the system's advantage over the classical
-baseline must be explained by operations shared across proposers. The component ablations in
-Table~\ref{tab:decision}, summarized alongside the proposal controls in
-Figure~\ref{fig:credit}(c), reveal that the gain is distributed across the statistical decision
-process rather than supplied by a single verification step. Removing the likelihood update costs
-about $0.29$ F1 because the system continues to perform experiments while discarding the evidence
-they produce, an effect roughly an order of magnitude larger than the spread across proposers.
-Choosing intervention targets also matters relative to random selection, although a max-degree
-heuristic nearly matches the Monte Carlo information-gain policy in this regime. BIC initialization
-has a smaller effect than the update, but together these ablations show that the submitted graph
-emerges from a sequence of approximate statistical decisions rather than from an exact verifier that
-simply accepts or rejects an LLM guess.
 
-Candidate-set construction contributes a different kind of value by limiting the damage a proposal
-can cause before any experiment is evaluated. When the guard is removed, edited orientations compete
-for every one of the $48$ slots and final F1 falls by roughly $0.05$. The true DAG survives in
-$69\%$ of guarded candidate sets but only $24\%$ of their unguarded counterparts, with the random
-editor showing the same qualitative pattern. By contrast, the oracle-edit arm is unchanged on these
-instances, indicating that the reservation protects the system from poor proposals without a
-measurable cost when the proposed correction is exact. This comparison explains why the guard is
-more consequential here than model choice, while remaining an empirical result tied to the present
-candidate budget rather than a universal guarantee.
+A flat capability curve invites the obvious objection: perhaps we simply asked badly. We did, and
+the way in which we asked badly is measurable.
 
-The apparently decisive final weights reveal how strongly the update remains dependent on the
-earlier candidate-construction decision. Pooling the two main \nem{} arms, $83$ of $160$ episodes
-finish with a maximum weight above $0.999$, yet
-$31$ of the corresponding MAP graphs are not exactly correct; in every such episode, the true DAG
-is absent from $\Hyp$. The update is therefore capable of concentrating almost all mass on the best
-retained explanation while remaining confidently wrong because proposal or pruning excluded the
-truth. Distinguishing this candidate-coverage failure from within-set ranking failure is essential:
-the decision layer is a powerful filter over the graphs it receives, but its concentration should
-not be mistaken for calibrated confidence over graphs it was never allowed to consider.
+\paragraph{We stated a false adjacency criterion.}
+The executed prompt told the proposer that for a linear-Gaussian DAG, two variables are directly
+connected if and only if their partial correlation given all others is nonzero. That is the
+criterion for a Gaussian \emph{graphical model}, not a DAG. The precision matrix of a linear-Gaussian
+DAG is supported on the \emph{moral} graph, so any two parents of a common child remain partially
+correlated given everything else while being non-adjacent. Our instruction therefore actively
+directs a proposer to add exactly those co-parent pairs.
 
-\begin{table}[t]
-\caption{Decision-layer ablations over $80$ paired instances. The recorded LLM proposal is held
-fixed across ablations. Candidate membership is also fixed except in the guard ablation, whose
-purpose is to change which candidates survive the $48$-graph cap. $\Delta$ is relative to full
-\nem{} on the same model. Diagnostic columns use the \texttt{gpt-4o-mini} arm, except for the
-model-free random editor.}
-\label{tab:decision}
-\centering
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{lcccccc}
-\toprule
-& \multicolumn{2}{c}{gpt-4o-mini} & \multicolumn{2}{c}{qwen3-30b} & \multicolumn{2}{c}{diagnostics} \\
-\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
-Arm & directed F1 & $\Delta$ & directed F1 & $\Delta$ & final entropy & truth in $\Hyp$ \\
-\midrule
-\nem{} (full)                & $0.956$ & n/a & $0.953$ & n/a & $0.22$ & $0.69$ \\
-$-$ likelihood update        & $0.662$ & $-0.294$ & $0.677$ & $-0.276$ & $2.38$ & $0.69$ \\
-$-$ EIG (random experiment)  & $0.900$ & $-0.056$ & $0.885$ & $-0.068$ & $0.69$ & $0.69$ \\
-$-$ the guard                & $0.900$ & $-0.056$ & $0.907$ & $-0.046$ & $0.43$ & $0.24$ \\
-$-$ BIC (uniform prior)      & $0.933$ & $-0.022$ & $0.933$ & $-0.020$ & $0.46$ & $0.69$ \\
-$-$ EIG (max-degree rule)    & $0.952$ & $-0.004$ & $0.944$ & $-0.009$ & $0.23$ & $0.69$ \\
-edge marginals, not MAP      & $0.956$ & $\pm 0.000$ & $0.953$ & $\pm 0.000$ & $0.22$ & $0.69$ \\
-\midrule
-\emph{random editor, no LLM} & $0.951$ & $-0.004$\,(n.s.) & $0.951$ & $-0.002$\,(n.s.) & $0.23$ & $0.74$ \\
-\bottomrule
-\end{tabular}
-\end{table}
+The models complied. Classifying every wrong addition by whether the pair are co-parents in the true
+DAG, the concentration on co-parents rises monotonically with edit precision across the five models
+--- $1.1\times$ chance for \texttt{qwen3-30b} up to $6.0\times$ for \texttt{gemini-3-flash}, Spearman
+$\rho=0.90$ ($p=0.037$, Figure~\ref{fig:mechanism}a). For \texttt{gemini-3-flash}, $75\%$ of wrong
+additions are co-parent pairs, and $83\%$ of all its additions are either true edges or that one
+artifact. The better the model, the more faithfully it executed a misspecified instruction. That is
+what the flat capability curve is made of: capability was being spent on compliance.
+
+\paragraph{Correcting it removes the artifact, not the deficit.}
+We reran both prompts on the same instances with the same five models, differing only in the
+statistics supplied and the rule stated. The corrected interface gives PC's own separating sets with
+their partial correlations and $p$-values, and states the adjacency criterion properly.
+
+It works as diagnosis: co-parent enrichment collapses to chance for every capable model
+($6.1\times \to 1.4\times$ for \texttt{gemini-3-flash}, $3.7\times \to 1.4\times$ for
+\texttt{haiku-4.5}, Figure~\ref{fig:mechanism}b). It does not work as a fix. Pooled over five models
+the corrected prompt is worth $-0.009$ F1 (n.s.), and it \emph{costs} the two models that had been
+following the false rule most closely: $-0.051$ for \texttt{haiku-4.5} ($p=0.003$) and $-0.025$ for
+\texttt{gemini-3-flash} (n.s.). Under the corrected interface the LLM no longer beats its own
+count-matched null at all (percentile $0.515$, $p=0.34$).
+
+The reason is that the two interfaces expose different information. The full-order partial
+correlation is wrong about adjacency but describes the moral graph, an object PC never computes and
+whose extra edges are informative about missing ones; \texttt{gemini-3-flash} recovers $58$ correct
+edits under it against $16$ under the corrected prompt. Separating sets, by contrast, are precisely
+what PC already used to build the skeleton, so asking a model to second-guess them is asking it to
+redo a computation on evidence that has been extracted. Our misspecification was real, and fixing it
+made proposals worse. We report this because it is the opposite of what we expected, and because it
+bounds the objection: the negative result is not an artifact of the wrong prompt.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{nemchua_f4_mechanism.pdf}
-\caption{(a) In these runs, the guard leaves the oracle-edit arm unchanged and protects the
-imperfect edit arms; annotations show how often the true DAG survives the candidate cap. (b)
-Entropy of the normalized model weights. Without the likelihood update the weights never absorb
-experimental evidence.}
+\caption{(a) Wrong additions that are co-parent pairs in the true DAG, relative to the rate an
+uninformed editor would hit, against edit precision. Our prompt's false adjacency criterion endorses
+exactly these pairs, and compliance with it rises with capability. (b) The same measure under the
+misspecified and corrected prompts, on the same instances and models. (c) The accuracy that
+correcting the prompt buys, per model, with $95\%$ intervals on the paired difference.}
 \label{fig:mechanism}
 \end{figure}
 
-\subsection{Boundary conditions for useful proposal content}
+\subsection{When a proposer is worth anything}
 \label{sec:when}
 
-The near-null contrast between learned and random proposals describes the regimes we tested rather
-than a universal limit on proposer value, and varying the observational sample reveals one plausible
-boundary of that result. As the sample grows from $40$ to $1000$ rows, PC becomes progressively more
-reliable, and
-a language model separates from the random editor only at the smallest sample size; from $60$ rows
-onward, the contrast is not distinguishable from zero (Figure~\ref{fig:when}(a)). This pattern is
-consistent with a diminishing opportunity for proposal content: once the statistical estimator has
-already recovered most adjacencies, even a better edit policy has little structure left to repair.
-The fixed-cap, single-draw random control prevents a causal attribution of that interaction, but the
-sweep identifies estimator error as a more informative axis than graph size alone.
+Two conditions have to hold together. Data must be scarce enough that the statistical front-end is
+underpowered --- at $n_{\mathrm{obs}}{=}1000$ the LLM's contribution is indistinguishable from zero
+(Figure~\ref{fig:when}a). And the variables must carry meaning. On five published network structures
+with their real variable names restored, naming is worth $+0.021$ F1 at $n_{\mathrm{obs}}{=}60$
+($p=0.008$) and $+0.003$ at $n_{\mathrm{obs}}{=}300$ (n.s., Figure~\ref{fig:when}b). This is our one
+result in which an LLM does something no statistic can, and we hold it loosely: the structures are
+published, so transferable knowledge and memorization are not separable here, and names and domain
+description vary together.
 
-Semantic context creates a second, conceptually different boundary because it can provide information
-that is absent from the observational summary. We re-parameterize five published DAGs as
-linear-Gaussian models and present every instance either with anonymous labels
-$X_0 \dots X_{d-1}$ or with the published labels and a one-sentence domain description. The graph,
-parameters, samples, and node indices remain paired across the two presentations. With only
-$60$ observational rows, four of five models produce more precise edits in the semantic condition,
-and \texttt{gemini-3-flash} exceeds the shared random control by $0.080$ final F1; once the sample
-increases to $300$ rows, the pattern largely recedes. The contrast is therefore compatible with a
-substitution effect in which prompt context is useful precisely when statistical evidence is weak.
-
-That interpretation remains provisional because the experiment does not isolate transferable domain
-knowledge. Variable labels and the domain description change together, all five networks are widely
-published and may be represented in pretraining data, and the same base parameterizations recur
-across models. Treating all $300$ model-instance pairs as independent would consequently overstate
-the precision of the comparison. Without shuffled-label controls, separate label and description
-factors, and inference clustered by base parameterization, the defensible conclusion is that semantic
-prompt context can coincide with better proposals in a scarce-data regime, not that the models have
-demonstrated general causal knowledge.
-
-The oracle-edit arm provides an important counterpoint to these qualifications because it remains
-substantially above both learned and random proposers and nearly reaches the graph oracle in the main
-regime, demonstrating that correct adjacency repair can influence the final answer under the same
-decision architecture. The negative result is thus not a claim that proposal quality is irrelevant.
-Rather, it shows that the implemented interface and decision layer convert only a small fraction of
-the available proposal advantage into downstream accuracy.
+Even there the comparison is unflattering. Pooled over the five structures, the named-variable LLM
+remains $0.016$ F1 below the ranker that sees no names at all ($p=0.064$), significantly below it on
+\texttt{sachs} ($-0.039$, $p=0.001$) and \texttt{survey} ($-0.059$, $p=0.025$). The one structure
+where names are directionally worth more than statistics is \texttt{earthquake} ($+0.033$,
+$p=0.09$), and the pattern across structures --- help on \texttt{earthquake} and \texttt{cancer},
+none on \texttt{sachs} --- suggests what transfers is everyday causal common sense rather than
+domain expertise (Appendix~\ref{app:semantic}).
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{nemchua_f5_when.pdf}
-\caption{Both panels are measured against the random-edit control, so zero means ``no better than
-proposing at random''. (a) Anonymized synthetic instances across sample sizes. (b) Published DAG
-structures at $n_{\mathrm{obs}}{=}60$, under anonymous or semantic prompt context; percentages give
-edit precision in the semantic condition. This panel is exploratory because labels and description
-change together and the published structures may be memorized.}
+\caption{(a) Gain over proposing nothing against observational sample size, for the LLM and for the
+model-free ranker, on shared instances. (b) On five published network structures, the gain from
+restoring real variable names to the LLM, beside the gain the ranker obtains without seeing them.
+Stars are paired Wilcoxon tests. The named condition cannot separate transferable knowledge from
+memorization, and names and domain description change together.}
 \label{fig:when}
 \end{figure}
+
+\paragraph{What is left on the table.}
+Perfect edits reach $0.999$ on the main cohort, $+0.097$ over proposing nothing, and handing over
+the true adjacency set at any edit distance scores identically ($p=1.0$): on synthetic instances the
+four-edit budget never binds, and the remaining error is adjacency error that a better proposal
+could remove. On the published structures the budget does bind, and hard --- the true skeleton is
+worth $0.962$ against perfect four-edit repair's $0.890$ at $n_{\mathrm{obs}}{=}60$
+(Appendix~\ref{app:ceiling}). Either way the channel is wide and largely unclaimed.
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-\nem{} succeeds as an active causal discovery system, but the attribution audit changes what that
-success means. Replacing the learned proposer with cap-matched random edits nearly reproduces the
-final score, while models with substantially different edit precision converge to similar answers.
-The intermediate diagnostics explain this compression: better proposals improve candidate coverage,
-yet bounded enumeration and approximate scoring often fail to convert that coverage into a different
-submitted graph. Most of the measured advantage instead comes from the likelihood update and from
-preserving unedited orientations when proposals are unreliable.
+\nem{} works as an active causal discovery system, and the audit changes what that is worth knowing
+for. Proposal content does carry information: matched against random editors of exactly its own
+size, every model we tested lands above its own null. But the amount is small, it does not track
+model capability, and a proposer with no world knowledge --- one that mechanically executes the rule
+we wrote into the prompt --- extracts more of it than any language model, by a margin larger than
+the models' own margin over random. Most of the system's accuracy comes from elsewhere entirely:
+from the interventional likelihood update, and from a guard that is worth $+0.05$ when the proposal
+is wrong and exactly nothing when it is right.
 
-This result does not imply that proposal content is intrinsically unimportant. Oracle corrections
-nearly solve the task under the same architecture, and semantic context coincides with a larger model
-advantage when observational evidence is scarce. Those observations identify the conditions a useful
-proposal channel must satisfy: the estimator must leave recoverable error, the proposer must receive
-valid complementary evidence, candidate construction must preserve the resulting hypotheses, and the
-decision layer must recognize them. The present system leaves capacity unused at several of these
-links, while the misspecified partial-correlation prompt and the confounded semantic condition prevent
-a broader claim about LLM causal knowledge.
+The most useful thing we found was not about the models. Auditing every edit against the true graph
+showed that our own prompt asserted a criterion that is false for a DAG, that the strongest models
+followed it most faithfully, and that their characteristic errors are the ones it endorses. Stating
+the rule correctly removed the artifact and made proposals worse, because the false statement had
+been exposing the moral graph --- an object the constraint-based front-end never computes --- while
+the correct one asks a model to re-derive what the front-end already used. What a proposer can
+contribute is not fixed by the data; it is fixed by what the rest of the pipeline has already
+consumed, and an interface can be statistically wrong and still informative.
 
-System performance and generator contribution therefore require separate evaluation. Holding the
-pipeline fixed while comparing no-proposal, random-proposal, and oracle-proposal controls exposes
-what an end-to-end baseline cannot. In this setting, those controls show that scaffolding explains
-reliability more consistently than model choice, illustrating why attribution should be measured
-directly rather than inferred from system accuracy.
+We therefore think a propose-and-verify result needs two controls rather than one. A random
+proposer matched to realized behaviour, not to the budget cap, bounds what proposal volume alone
+buys. A mechanical proposer executing the stated instruction bounds what the instruction alone buys.
+Only what survives both belongs to the model. In this system, on these graphs, that residue is real
+and small, and the honest headline is not that the LLM failed but that we never gave it a question
+its capability could answer.
 
 \appendix
 
@@ -625,6 +623,60 @@ boundary of the assembled system. Estimating the generator's marginal contributi
 individual proposals have no observable ground truth. Synthetic causal discovery is unusual in
 providing both edit-level labels and a final task score, which allows proposal quality to be separated
 from the quality of the answers produced after filtering.
+
+\section{The algorithm in full}
+\label{app:algorithm}
+
+This appendix answers, in one place, the questions a reader needs in order to reimplement \nem{}.
+
+\paragraph{Candidate construction.}
+\begin{enumerate}[leftmargin=1.4em,itemsep=1pt,topsep=2pt]
+\item Run PC (Fisher-Z, $\alpha=0.05$) on the observational panel and coerce the result to a valid
+CPDAG. If PC returns a cyclic directed part, every directed edge is demoted to undirected.
+\item Obtain a proposal: a set of removals $R$ and additions $A$ over the undirected skeleton.
+Removals not present in PC's adjacency set and additions already present are dropped; pairs are
+canonicalized, de-duplicated, range-checked, and truncated to at most four of each.
+\item Form skeleton variants: PC's skeleton unchanged; the skeleton with \emph{all} edits applied;
+then one variant per individual edit. This ordering matters --- an earlier version listed all
+removals before any additions and truncated the list, which silently discarded the additions of
+verbose proposers (Appendix~\ref{app:ordering}). At most $10$ variants are kept.
+\item For each variant, enumerate acyclic orientations, up to $1024$ per skeleton. Enumeration is
+exhaustive below that bound and uniformly subsampled above it. Every candidate is scored by exact
+linear-Gaussian BIC on the observational panel.
+\item Prune to $M=48$ candidates. Half the budget is \emph{reserved} for the best-scoring
+orientations of PC's unedited skeleton; the remainder is filled by BIC rank across all variants.
+This is the guard. Candidates are de-duplicated by edge set before pruning, so an orientation
+reachable from two variants occupies one slot.
+\end{enumerate}
+
+\paragraph{Weights and the active loop.}
+Each candidate $h$ is fitted by least squares and weighted by $w_h \propto \exp(-\tfrac{1}{2}
+\mathrm{BIC}_h)$. At each step the target maximizing expected information gain about the hypothesis
+index is chosen; the intervention value is $v = \mu_a + 2\sigma_a$ under the current MAP candidate,
+a fixed displacement large enough to separate children from parents at these sample sizes. The EIG
+expectation uses $12$ Monte Carlo outcome \emph{batches}, each a full draw of $n_{\mathrm{int}}$
+rows from the mutilated model of a candidate sampled from $w$, so the simulated evidence has the
+same precision as the evidence the step will actually receive. A target may be selected more than
+once; nothing forbids repetition, and with $12$ outcomes the selector occasionally does repeat.
+After each experiment the weights are multiplied by the exact interventional likelihood under each
+candidate's mutilated model and renormalized. The loop stops at the budget, or early when the MAP
+candidate's weight exceeds $0.95$ and no undirected edge remains ambiguous --- an edge counts as
+ambiguous when the posterior mass placed on its two orientations differs by less than $0.9$.
+
+\paragraph{The random editor.}
+Removals are drawn without replacement from PC's adjacency set and additions from the non-adjacent
+pairs, uniformly. In the main table the counts are fixed at the cap, four of each; in the
+permutation control of Section~\ref{sec:credit} they are set to the realized counts of the proposal
+being tested, after the same sanitization the LLM arm applies.
+
+\paragraph{Statistics.}
+Confidence intervals on arm means are normal intervals over instances; intervals on contrasts are
+percentile bootstrap over paired differences with $4000$ resamples. Paired tests are two-sided
+Wilcoxon signed-rank on the nonzero differences, with exact ties excluded from the statistic and
+reported separately in the win/loss/tie counts. Where an arm has several models on one instance,
+the instance's value is the mean over models before pairing, so the unit of analysis is the
+instance. We do not correct for multiple comparisons; the contrasts are pre-specified by the ladder
+and reported in full, including the ones that are null.
 
 \section{Instances, models and the difficulty ladder}
 \label{app:instances}
@@ -812,7 +864,7 @@ instead of edits. $60$ instances per cell ($d \in \{6,8,10\}$).}
 \centering
 \small
 \setlength{\tabcolsep}{4.5pt}
-\begin{tabular}{lccccccc}
+\begin{tabular}{lcccccc}
 \toprule
 Model & edits correct & \nem{} F1 & $\Delta$ no edits & $\Delta$ random & LLM-graphs & tokens \\
 \midrule
@@ -893,6 +945,57 @@ corrected skeleton no longer guarantees that the retained set contains the true 
 proposal quality and candidate-search scalability are therefore distinct bottlenecks that happen to
 coincide on this network.
 
+\paragraph{The ranker on real structures, and what naming actually buys.}
+Table~\ref{tab:semantic_rank} adds the model-free ranker and the true-skeleton ceiling to the
+semantic cohorts. Two things follow. First, the naming effect replicates at
+$n_{\mathrm{obs}}{=}60$ ($+0.021$, $p=0.008$) and vanishes at $n_{\mathrm{obs}}{=}300$ ($+0.003$,
+n.s.), which is the sample-size boundary Section~\ref{sec:when} describes, now with the
+$n_{\mathrm{obs}}{=}300$ numbers the comparison needs.
+
+Second, the ranker --- which sees no names, no domain description and no model --- is above the
+named-variable LLM on three of the five structures and $0.016$ above it pooled ($p=0.064$). The
+exception is instructive. Naming helps on \texttt{earthquake} ($0.769 \to 0.846$) and
+\texttt{cancer} ($0.796 \to 0.816$), the two structures whose variables are everyday concepts, and
+the named LLM is the only proposer to beat the ranker on \texttt{earthquake} ($+0.033$, $p=0.09$).
+It does not help on \texttt{sachs} ($0.417 \to 0.400$), whose variables are signalling proteins, and
+there the ranker leads by $0.039$ ($p=0.001$). Whatever the models are contributing when names are
+restored looks like ordinary causal common sense about earthquakes and alarms rather than
+specialist knowledge, which is also the reading least flattering to a memorization explanation and
+least supportive of a domain-expertise one.
+
+\begin{table}[h]
+\caption{Semantic cohorts with the model-free arms. $60$ instances per cell ($5$ structures $\times$
+$12$ seeds); \texttt{named} and \texttt{anon} are the five-model means over the same instances. The
+ranker and the ceilings are evaluated once per instance and shared across conditions, since they do
+not read the prompt.}
+\label{tab:semantic_rank}
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lcccccc}
+\toprule
+& no edits & random & ranker & anon & named & true skeleton \\
+\midrule
+\multicolumn{7}{l}{\emph{$n_{\mathrm{obs}}=60$}}\\
+\texttt{asia}       & $0.760$ & --- & $0.776$ & $0.726$ & $0.756$ & $1.000$ \\
+\texttt{cancer}     & $0.721$ & --- & $0.813$ & $0.796$ & $0.816$ & $0.991$ \\
+\texttt{earthquake} & $0.721$ & --- & $0.813$ & $0.769$ & $0.846$ & $0.991$ \\
+\texttt{sachs}      & $0.411$ & --- & $0.439$ & $0.417$ & $0.400$ & $0.828$ \\
+\texttt{survey}     & $0.668$ & --- & $0.739$ & $0.686$ & $0.680$ & $1.000$ \\
+\textbf{pooled}     & $0.656$ & $0.693$ & $\mathbf{0.716}$ & $0.679$ & $0.700$ & $0.962$ \\
+\midrule
+\multicolumn{7}{l}{\emph{$n_{\mathrm{obs}}=300$}}\\
+\textbf{pooled}     & $0.821$ & $0.824$ & $0.819$ & $0.818$ & $0.821$ & $0.966$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+At $n_{\mathrm{obs}}{=}300$ every proposer collapses onto the no-edit score, the ranker included
+($0.819$ against $0.821$), and on \texttt{sachs} and \texttt{survey} the ranker is actively worse
+than proposing nothing. The rule it executes is a good heuristic where PC is underpowered and a
+liability where PC is already right --- the same boundary the LLM obeys, reached by a proposer with
+no model in it.
+
 \section{Scaling, and the full ladder}
 \label{app:scaling}
 
@@ -913,8 +1016,8 @@ else rises with the strength of the statistical front-end.}
 
 \begin{table}[h]
 \caption{Per-level means from the main run, $20$ instances per cell. The edit channel pays off at
-$d{=}4$, where PC's skeleton is weakest, and is otherwise roughly flat for both the random editor
-and the language models. Oracle edits gain at every size.}
+$d{=}4$, where PC's skeleton is weakest, and is otherwise roughly flat for both the cap-matched
+random editor and the language models. Oracle edits gain at every size.}
 \label{tab:levels_full}
 \centering
 \small
@@ -952,18 +1055,20 @@ the retained candidate set from exploiting even a correct skeleton.
 
 The same attribution pattern survives several changes to the experimental design, although the
 stress tests also expose limits of the downstream machinery. Across PC significance thresholds, the
-language-model arms remain close to the random editor, and increasing the edit allowance produces no
-monotone improvement. A tight intervention budget makes target selection more consequential because
-the policy cannot recover from an uninformative experiment, even though the max-degree heuristic
-continues to track the Monte Carlo selector. At $d{=}12$, orientation sampling prevents even oracle
-edits from reliably placing high-quality graphs in the retained set. We interpret this degradation as
-a scalability warning about bounded candidate construction rather than as evidence against proposal
-quality, keeping this failure mode separate from the quality of the proposed edits.
+language-model arms remain close to the cap-matched random editor, and increasing the edit allowance
+produces no monotone improvement. A tight intervention budget makes target selection more
+consequential because the policy cannot recover from an uninformative experiment, even though the
+max-degree heuristic continues to track the Monte Carlo selector. At $d{=}12$ the ordering of the
+whole ladder inverts: bounded enumeration cannot represent the orientation space of a $12$-node
+skeleton, so a \emph{better} skeleton is punished and even the true adjacency set scores below PC's
+own. Appendix~\ref{app:saturation} takes this apart. It is a scalability warning about bounded
+candidate construction rather than evidence about proposal quality, and we keep the two separate.
 
 \begin{table}[h]
 \caption{Robustness across front-end thresholds, intervention budget, and graph size. The
-language-model contrast stays close to the shared random editor where both are available. Under a
-tight budget, experiment selection becomes more consequential.}
+language-model contrast stays close to the shared cap-matched random editor where both are
+available; the count-matched null is in Table~\ref{tab:perm}. Under a tight budget, experiment
+selection becomes more consequential.}
 \label{tab:robust}
 \centering
 \small
@@ -1032,15 +1137,17 @@ The edit-cap sweep tests whether the weak dependence on proposer identity is mer
 search neighborhood that is too small. At $n_{\mathrm{obs}}{=}60$, increasing the allowance from
 two to four and then eight edits produces neither a monotone improvement in final F1 nor a gain in
 edit precision. Additional capacity is used mainly to propose more changes of similar quality, so it
-does not address the conversion bottleneck identified in Section~\ref{sec:credit}. The random editor
-at the default cap reaches $0.855$, above every LLM setting in this sweep, which further suggests
-that edit volume alone cannot explain the differences among learned proposers.
+does not address the conversion bottleneck identified in Section~\ref{sec:credit}. The cap-matched
+random editor reaches $0.855$, above every LLM setting in this sweep. That comparison is
+volume-advantaged in the random editor's favour (Appendix~\ref{app:permutation}), so it does not by
+itself show that proposal content is worthless; what it does show is that giving a model a larger
+edit allowance is not the missing ingredient.
 
 \begin{table}[h]
 \centering
 \small
 \setlength{\tabcolsep}{6pt}
-\begin{tabular}{lccccccc}
+\begin{tabular}{lcccccc}
 \toprule
 & & & \multicolumn{2}{c}{gpt-4o-mini} & \multicolumn{2}{c}{qwen3-30b} \\
 \cmidrule(lr){4-5}\cmidrule(lr){6-7}
@@ -1060,8 +1167,9 @@ references, exposes the cost of repeatedly returning experimental evidence to th
 as \nem{} while scoring $0.75$--$0.96$ lower in F1, because each experimental batch re-enters its
 context. Asking the model for whole graphs costs about as much as asking for edits but lowers F1 by
 approximately $0.29$, indicating that reduced authority, rather than token count alone, accounts for
-the improvement. The zero-token random editor then reaches the same region as \nem{}, separating
-the efficiency of the interface from the marginal value of the learned proposal.
+the improvement. Two zero-token arms then bracket \nem{} on the same axis: the cap-matched random
+editor reaches roughly its region, and the statistical ranker exceeds it, so on a cost-adjusted view
+the learned proposer is dominated at both ends.
 
 \begin{figure}[h]
 \centering
@@ -1108,6 +1216,7 @@ oracle edits $-$ no edits        & $+0.230^{***}$ & $+0.155^{***}$ & $+0.129^{**
 \end{tabular}
 \end{table}
 
+\label{app:ordering}
 We also corrected an enumeration asymmetry that could plausibly have hidden the models' strongest
 proposal signal. The first implementation listed all removals before additions and truncated the
 variant list at six, causing a proposal with four removals to lose most of its additions even though
@@ -1118,26 +1227,223 @@ capability curve in Section~\ref{sec:credit} therefore cannot be attributed to t
 even though correcting it makes the implemented interface better aligned with where proposal quality
 is observed.
 
+\section{The permutation control in full}
+\label{app:permutation}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{nemchua_a6_permnull.pdf}
+\caption{The percentile each proposal reaches inside the null distribution generated by $200$ random
+editors constrained to that proposal's own realized counts. Under the null the histogram is uniform
+and the mean is $0.5$ (dotted); the red line is the observed mean. The rightmost panel is the
+corrected interface of Appendix~\ref{app:promptab}, where the excess disappears.}
+\label{fig:a6}
+\end{figure}
+
+Table~\ref{tab:perm} gives the control in full. Two statistics are reported because they answer
+different questions. The mean percentile asks whether a proposal ranks above the random proposals of
+its own size, and is tested against $0.5$; the paired Wilcoxon asks whether the LLM's F1 exceeds the
+mean of its own null, instance by instance, and is more powerful because the differences are
+dominated by exact ties broken by a few large wins.
+
+The two disagree in one informative place. At $n_{\mathrm{obs}}{=}300$ on the main cohort, the
+percentile test is marginal ($0.532$, $p=0.018$) while the Wilcoxon is decisive ($p<10^{-4}$). The
+reason is visible in Figure~\ref{fig:a6}: at $n_{\mathrm{obs}}{=}300$ most instances are already
+solved by PC, so most proposals land exactly at the null median and contribute nothing to either
+test, and the signal comes from a minority of instances where PC erred. The percentile statistic
+dilutes those; the paired test does not.
+
+\begin{table}[h]
+\caption{Realized-count-matched permutation control, $200$ draws per instance and model. ``null''
+is the mean F1 of those draws. ``pctile'' is the mean percentile the LLM reaches inside its own
+null, tested against $0.5$. W/L/T counts instances where the LLM's F1 exceeds, falls below, or
+exactly equals its null mean. Cohorts differ in instances and are not comparable across rows.}
+\label{tab:perm}
+\centering
+\small
+\begin{tabular}{llrrrrrr}
+\toprule
+cohort & proposer & LLM & null & $\Delta$ & pctile & $p$ & W/L/T \\
+\midrule
+main, $n{=}300$ & \texttt{gpt-4o-mini} & $0.958$ & $0.945$ & $+0.013$ & $0.530$ & $0.0007^{***}$ & 49/13/18 \\
+                & \texttt{qwen3-30b}   & $0.949$ & $0.933$ & $+0.016$ & $0.534$ & $0.0007^{***}$ & 54/14/12 \\
+                & \textbf{pooled}      & $0.954$ & $0.939$ & $+0.014$ & $0.532$ & $<10^{-4\,***}$ & 103/27/30 \\
+\midrule
+models, $n{=}60$ & \texttt{qwen3-30b}     & $0.836$ & $0.809$ & $+0.027$ & $0.564$ & $0.020^{*}$ & 39/21/0 \\
+                 & \texttt{gpt-4o-mini}   & $0.825$ & $0.810$ & $+0.015$ & $0.566$ & $0.032^{*}$ & 38/19/3 \\
+                 & \texttt{gpt-5.4-mini}  & $0.847$ & $0.805$ & $+0.042$ & $0.621$ & $0.0013^{**}$ & 43/17/0 \\
+                 & \texttt{haiku-4.5}     & $0.839$ & $0.807$ & $+0.033$ & $0.597$ & $0.0040^{**}$ & 43/17/0 \\
+                 & \texttt{gemini-3-flash}& $0.831$ & $0.799$ & $+0.032$ & $0.607$ & $0.017^{*}$ & 43/16/1 \\
+                 & \textbf{pooled}        & $0.835$ & $0.806$ & $+0.030$ & $0.591$ & $<10^{-4\,***}$ & 206/90/4 \\
+\midrule
+models, $n{=}300$ & \textbf{pooled}       & $0.941$ & $0.924$ & $+0.017$ & $0.562$ & $<10^{-4\,***}$ & 228/55/17 \\
+\midrule
+corrected prompt, $n{=}60$ & \textbf{pooled} & $0.815$ & $0.807$ & $+0.008$ & $0.515$ & $0.0076^{**}$ & 167/107/26 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{What the first draft got wrong.}
+Our first submission compared \nem{} against a random editor fixed at the cap of four removals and
+four additions and concluded that random edits reproduce the LLM's score. That comparison is not
+wrong arithmetically --- the cap-matched control does score $0.951$ against \nem{}'s $0.954$ --- but
+it is not the comparison that isolates proposal content. Eight random edits give the hypothesis
+space more chances to contain a true adjacency than the three that \texttt{gemini-3-flash} proposes,
+so the cap-matched control is a volume-advantaged control, and the null it defines is too strong.
+Matching the realized counts moves the null down by $0.012$ and turns a null result into a
+significant one. We keep the cap-matched arm in Table~\ref{tab:main} because it is the natural
+reading of ``random edits at the same budget'', and report both.
+
+\section{The corrected interface}
+\label{app:promptab}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{nemchua_a7_promptab.pdf}
+\caption{The two interfaces on the same $60$ instances with the same five models. Both prompts state
+the output mapping identically; they differ in the statistics supplied and in the adjacency rule.}
+\label{fig:a7}
+\end{figure}
+
+The full-order partial correlation matrix is a sufficient statistic for a Gaussian model, which is
+why we supplied it, but its \emph{support} is the moral graph rather than the skeleton. Writing
+$\Omega = \Sigma^{-1}$, for a linear-Gaussian DAG $\Omega_{ij} \neq 0$ exactly when $i$ and $j$ are
+adjacent or share a child. So the rule we stated --- nonzero partial correlation implies adjacency
+--- is false precisely on the co-parent pairs, which are the pairs that carry the unshielded
+colliders, and therefore the pairs the orientation problem depends on most.
+
+Figure~\ref{fig:a7} decomposes what changed. Precision \emph{converges} rather than improving: the
+spread across models falls from $[0.082, 0.324]$ to $[0.074, 0.178]$. The strongest model loses
+most, because it had been complying most. Volume falls for four of five models. And the count of
+correct edits found falls sharply for the strong models: \texttt{gemini-3-flash} recovers $58$
+correct edits under the misspecified rule and $16$ under the correct one.
+
+That last number is the substantive point, and it is worth stating plainly because it is
+counterintuitive. The misspecified rule is a high-recall, low-precision detector for missing
+adjacencies: a pair with large full-order partial correlation is either a true edge PC missed or a
+co-parent pair, so following the rule finds both. The corrected rule points the model at PC's
+separating sets --- but those are exactly the computations PC already performed to build the
+skeleton, so the model is being asked to overturn a decision using the evidence that produced it.
+The information available to a proposer is not a property of the data alone; it is a property of
+what the front-end has already consumed. A statistically incorrect interface can expose more of it
+than a correct one.
+
+\section{The statistical ranker}
+\label{app:ranker}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{nemchua_a8_ranker.pdf}
+\caption{Every arm on every cohort where the exact posterior can be enumerated, plus $d{=}12$ where
+it cannot. Means over instances with $95\%$ intervals.}
+\label{fig:a8}
+\end{figure}
+
+The ranker is the instruction in our prompt, executed without a model:
+
+\begin{quote}\small\ttfamily
+remove = argsort(|pcorr[e]| for e in pc\_adjacencies)[:k]\\
+add ~~~= argsort(-|pcorr[e]| for e in non\_adjacent)[:k]
+\end{quote}
+
+Table~\ref{tab:ranker} places it against the LLM at every stage of the pipeline. It wins at every
+stage, and the margin widens upstream: the ranker puts the true DAG inside the hypothesis set on
+$87.5\%$ of main-cohort instances against the LLM's $68.1\%$, and raises the best F1 available in
+the set from $0.967$ to $0.985$. This matters for interpretation --- the ranker is not winning
+through a lucky interaction with the selector, it is winning by constructing a better hypothesis
+space, which is the job the proposer was given.
+
+\begin{table}[h]
+\caption{The ranker against the LLM, main cohort, $80$ paired instances. Truth-in-$\mathcal{H}$ and
+best-F1-in-$\mathcal{H}$ are properties of the candidate set before any experiment is run.}
+\label{tab:ranker}
+\centering
+\small
+\begin{tabular}{lrrrr}
+\toprule
+arm & directed F1 & truth in $\mathcal{H}$ & best F1 in $\mathcal{H}$ & $\Delta$ vs no edits \\
+\midrule
+no edits                & $0.901$ & $0.487$ & $0.944$ & --- \\
+random edits (cap)      & $0.951$ & $0.738$ & $0.973$ & $+0.050$ \\
+LLM edits               & $0.954$ & $0.681$ & $0.967$ & $+0.053^{***}$ \\
+statistical ranker      & $0.976$ & $0.875$ & $0.985$ & $+0.074^{***}$ \\
+perfect edits           & $0.999$ & $1.000$ & $1.000$ & $+0.097^{***}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+There is one place the ranker loses, and it is informative: at $d{=}12$ it scores $0.858$ against
+the LLM's $0.922$ (Appendix~\ref{app:saturation}).
+
+\section{Enumeration saturation at \texorpdfstring{$d=12$}{d=12}}
+\label{app:saturation}
+
+At $d{=}12$ the ordering of the whole ladder inverts, and the cause is the candidate budget rather
+than the proposals. Handing the pipeline the \emph{true} skeleton gives skeleton F1 $0.991$ but a
+best-available F1 inside the hypothesis set of only $0.918$, and a final score of $0.883$. Keeping
+PC's own skeleton (F1 $0.941$) yields a best-available F1 of $0.941$ and a final score of $0.922$.
+
+A better skeleton is being punished. The reason is that $M=48$ candidates cannot represent the
+orientation space of a $12$-node skeleton: with more true adjacencies there are more orientations to
+cover, the subsample thins, and the true DAG is less likely to survive into the set. Truth-in-set is
+$0.40$ for both the true-skeleton and LLM arms, but the LLM's smaller skeleton concentrates its
+budget on fewer orientations.
+
+This bounds the paper's scope honestly. Every claim we make about proposal quality holds in the
+regime where the exact posterior can be enumerated, which for our budget is $d \leq 10$. Beyond it,
+proposal quality stops being the binding constraint and the representation does. A system intended
+for larger graphs would need an approximate posterior, and the attribution question would have to be
+re-asked there.
+
+\section{Adjacency ceiling and orientation ceiling}
+\label{app:ceiling}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{nemchua_a9_ceiling.pdf}
+\caption{Perfect four-edit repair against the true adjacency set at any edit distance. On synthetic
+instances they coincide; on published structures they do not.}
+\label{fig:a9}
+\end{figure}
+
+\texttt{perfect edits} repairs PC's skeleton within the same four-edit budget the LLM has.
+\texttt{true skeleton} hands over the true adjacency set however far it is from PC's. The difference
+separates two failure modes that are easy to conflate: a proposal budget too small to express the
+repair, and an orientation problem that no adjacency information can solve.
+
+On synthetic instances the two are identical to three decimals on every cohort ($p=1.0$ on the main
+cohort): PC makes at most four adjacency errors, so the budget never binds, and everything the
+oracle leaves on the table is orientation error. On the published structures the budget binds hard
+--- $0.962$ against $0.890$ at $n_{\mathrm{obs}}{=}60$, $0.966$ against $0.921$ at $300$ --- because
+those graphs are denser and PC makes more than four errors. This qualifies a claim we made in the
+first draft: on \texttt{sachs} the oracle's low score is \emph{not} purely an orientation failure.
+With four edits it reaches $0.63$; with the true skeleton it reaches $0.83$; the remaining $0.17$ is
+orientation. Both mechanisms are present and the earlier attribution to sampling alone was too
+strong.
+
 \section{Limitations}
 \label{app:limitations}
 
-\paragraph{The executed prompt contains a causal-statistical error.}
-The proposer was told that full-order partial correlation characterizes DAG adjacency, an equivalence
-that fails in the presence of colliders and may have systematically directed the model toward poor
-edits. Consequently, the current null result applies to the executed interface rather than to an LLM
-supplied with valid separating-set, stability, or multi-conditioning-set evidence. Repairing the
-prompt requires rerunning the proposer arms and is the highest-priority follow-up because no textual
-qualification can recover the counterfactual proposals that a statistically correct prompt would
-have produced.
+\paragraph{The corrected interface is one correction, not the space of them.}
+Section~\ref{sec:mechanism} replaces the misspecified adjacency rule with PC's separating sets and
+the correct criterion, and finds the deficit unchanged. That rules out the specific objection that
+our negative result is an artifact of telling the model something false. It does not rule out the
+general one: bootstrap stability, partial correlations over many conditioning sets, or a design that
+lets the proposer request a test rather than read a matrix are all untried, and the analysis in
+Appendix~\ref{app:promptab} gives a positive reason to expect them to differ --- what a proposer can
+add depends on what the front-end has already consumed, so interfaces that expose statistics PC does
+not use are the ones worth trying next. Our claim is bounded to two interfaces, and both are
+reported.
 
-\paragraph{The random control is cap-matched and single-draw.}
-\texttt{random-edits} draws up to four removals and four additions, matching the allowance given to
-the models rather than each model's realized edit counts, and one seeded draw per instance produces
-the single shared row reported throughout. This design answers whether a weak proposer can reproduce
-the LLM result at the permitted edit volume, but it does not estimate a complete randomization
-distribution or isolate proposal content from proposal count. Per-model controls matched separately
-to realized removals and additions, repeated random draws, and a data-only edit ranker would provide
-a sharper estimate of the marginal value contributed by model selection.
+\paragraph{The permutation control matches counts, not structure.}
+The matched-count null in Section~\ref{sec:credit} fixes how many removals and additions a random
+editor makes, and draws them uniformly from PC's adjacency set and its complement. It therefore
+isolates proposal content from proposal volume, which was the confound in our first draft, but it
+does not condition on \emph{which} edges are plausible: a proposer that concentrates its edits on
+high-degree nodes, or on pairs with borderline test statistics, is being compared against one that
+does not. The statistical ranker is the strongest version of that objection we could construct, and
+the LLM loses to it; a null drawn from the ranker's own distribution rather than the uniform one
+would be a sharper test still.
 
 \paragraph{The semantic contrast is confounded.}
 The semantic condition changes both variable labels and a domain description, and all five networks
