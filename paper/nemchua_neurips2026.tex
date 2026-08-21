@@ -54,21 +54,19 @@ Scientific agents increasingly pair a generative proposer with a mechanical veri
 good enough to rescue weak proposals also makes end-to-end accuracy a poor measure of what the
 proposer contributed. We audit that attribution problem in active causal discovery through \nem{},
 which asks an LLM to flag likely errors in a PC-estimated skeleton and delegates every remaining
-decision to a bounded model-based pipeline. \nem{} reaches $0.954$ directed-edge F1 on $80$ paired
-synthetic instances against $0.874$ for PC+greedy+Meek. Three controls locate that gain. First, a
-random editor matched to each model's \emph{realized} edit counts, run $200$ times per instance,
-places the LLM at percentile $0.53$--$0.59$ of its own null: proposal content does carry information
-beyond proposal volume, and a cap-matched control understates it. Second, a two-line ranker that
-executes the rule we gave the proposer, with no world knowledge, beats every model in every cohort
-by $0.021$--$0.028$ F1 and puts the truth in the hypothesis set $88\%$ of the time against the LLM's
-$68\%$. Third, an audit explains the flat capability curve: our prompt asserted that a nonzero
-partial correlation given all other variables implies adjacency, which is false for a DAG, and the
-models' wrong additions concentrate on exactly the co-parent pairs that error invites --- more so
-the more capable the model ($1.1\times$ chance to $6.0\times$, $\rho=0.90$). Stating the rule
-correctly removes the artifact without recovering accuracy, because the false rule exposed the moral
-graph, which PC discards, while the correct one asks the model to redo work PC already did. Both the
-proposer and the interface it is given must be controlled before a propose-and-verify result can be
-credited to its generator.
+decision to a bounded model-based pipeline. \nem{} reaches $0.954$ directed-edge F1 against $0.874$
+for PC+greedy+Meek on $80$ paired instances. Three controls locate that gain. A random editor
+matched to each model's \emph{realized} edit counts, run $200$ times per instance, places every
+model above its own null (percentile $0.53$--$0.59$): proposal content does carry information, and
+the cap-matched control we first reported understated it. But a two-line ranker that executes the
+rule we gave the proposer, with no world knowledge, beats every model by $0.021$--$0.028$ F1 and
+puts the truth in the candidate set $88\%$ of the time against the LLM's $68\%$. Auditing the
+proposals explains why capability does not help: our prompt asserted that a nonzero partial
+correlation given all other variables implies adjacency, which is false for a DAG, and the models'
+wrong additions concentrate on exactly the co-parent pairs that error invites --- more so the more
+capable the model ($\rho=0.90$). Stating the rule correctly removes the artifact without recovering
+accuracy, because the false rule exposed the moral graph, which the front-end discards. Both the
+proposer and the interface it is given must be controlled.
 \end{abstract}
 
 \section{Introduction}
@@ -110,6 +108,16 @@ simultaneously erasing differences among generators. We therefore follow each pr
 edit-level correctness, through candidate-set coverage and ranking, to its effect on the submitted
 graph. This view asks not only whether the assembled system works, but whether its behavior would
 have changed had the language model contributed less informative proposals.
+
+\paragraph{How this differs from adjacent work.}
+Three literatures are close and none asks our question. \emph{LLMs for causal discovery} measures
+whether a model can name causal relations directly, so the proposal is the output and attribution is
+not at issue. \emph{Active intervention design} optimizes which experiment to run given a hypothesis
+space, treating that space as given rather than model-supplied. \emph{Evaluations of
+propose-and-verify systems} report end-to-end accuracy against baselines lacking the whole
+architecture --- exactly the comparison that cannot separate generator from verifier. We sit at the
+intersection, and ask how much of the final accuracy the model is responsible for
+(Appendix~\ref{sec:related}).
 
 \paragraph{Contributions.}
 \begin{itemize}\itemsep1pt
@@ -525,12 +533,10 @@ memorization, and names and domain description change together.}
 \end{figure}
 
 \paragraph{What is left on the table.}
-Perfect edits reach $0.999$ on the main cohort, $+0.097$ over proposing nothing, and handing over
-the true adjacency set at any edit distance scores identically ($p=1.0$): on synthetic instances the
-four-edit budget never binds, and the remaining error is adjacency error that a better proposal
-could remove. On the published structures the budget does bind, and hard --- the true skeleton is
-worth $0.962$ against perfect four-edit repair's $0.890$ at $n_{\mathrm{obs}}{=}60$
-(Appendix~\ref{app:ceiling}). Either way the channel is wide and largely unclaimed.
+Perfect edits reach $0.999$ on the main cohort, $+0.097$ over proposing nothing, and the true
+adjacency set at any edit distance scores identically ($p=1.0$), so the four-edit budget never binds
+on synthetic instances. On the published structures it binds hard: $0.962$ against $0.890$ at
+$n_{\mathrm{obs}}{=}60$ (Appendix~\ref{app:ceiling}). Either way the channel is largely unclaimed.
 
 \section{Conclusion}
 \label{sec:conclusion}
@@ -553,12 +559,11 @@ the correct one asks a model to re-derive what the front-end already used. What 
 contribute is not fixed by the data; it is fixed by what the rest of the pipeline has already
 consumed, and an interface can be statistically wrong and still informative.
 
-We therefore think a propose-and-verify result needs two controls rather than one. A random
-proposer matched to realized behaviour, not to the budget cap, bounds what proposal volume alone
-buys. A mechanical proposer executing the stated instruction bounds what the instruction alone buys.
-Only what survives both belongs to the model. In this system, on these graphs, that residue is real
-and small, and the honest headline is not that the LLM failed but that we never gave it a question
-its capability could answer.
+A propose-and-verify result therefore needs two controls rather than one. A random proposer matched
+to realized behaviour, not to the budget cap, bounds what proposal volume buys; a mechanical
+proposer executing the stated instruction bounds what the instruction buys. Only what survives both
+belongs to the model. Here that residue is real and small, and the honest headline is not that the
+LLM failed but that we never gave it a question its capability could answer.
 
 \appendix
 

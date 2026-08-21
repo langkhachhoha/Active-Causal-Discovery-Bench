@@ -133,6 +133,7 @@ scripts/*
 !scripts/make_figures.py
 !scripts/study2b.sh
 !scripts/nemchua_permutation.py
+!scripts/make_nemchua_v2.py
 
 # Keep episode/step CSVs, manifests and the analysis outputs; drop the bulky raw call log.
 traces/study1/**/events.jsonl

@@ -128,8 +128,9 @@ def fig_readout(audit, out_dir):
     ax1.xaxis.set_major_formatter(lambda v, _: f"{v:.0%}")
     ax1.set_xlabel("share of the arrows the readout submitted")
     ax1.xaxis.grid(True); ax1.set_axisbelow(True)
-    ax1.set_title("(a) every arrow submitted, selection pinned to the truth-gain reference",
-                  loc="left", fontsize=7.0)
+    # Keep panel titles short: the full experimental condition is already stated in
+    # the figure caption, and a long title collides with panel (b) at journal width.
+    ax1.set_title("(a) submitted arrows by outcome", loc="left", fontsize=7.0)
     ax1.legend(loc="lower center", bbox_to_anchor=(0.5, 1.16), ncol=3, handlelength=1.0,
                handletextpad=0.4, columnspacing=1.0, fontsize=6.3)
 
@@ -143,8 +144,12 @@ def fig_readout(audit, out_dir):
             r = c[key + "_rev"] / c[key + "_n"]
             ax2.bar(gi + (ai - 1) * width, r, width * 0.9, color=colour,
                     edgecolor="white", linewidth=0.4)
-            ax2.text(gi + (ai - 1) * width, r + 0.012, f"{r:.0%}", ha="center", va="bottom",
-                     fontsize=6.0, color=DARK)
+            # Values close to the 50% reference line are placed inside the bar so
+            # that neither the label nor its glyphs are crossed by the dashed line.
+            near_reference = abs(r - 0.5) < 0.04
+            label_y = r - 0.014 if near_reference else r + 0.012
+            ax2.text(gi + (ai - 1) * width, label_y, f"{r:.0%}", ha="center",
+                     va="top" if near_reference else "bottom", fontsize=6.0, color=DARK)
     ax2.axhline(0.5, color=RED, lw=0.8, ls=(0, (4, 2)))
     ax2.text(-0.42, 0.512, "coin flip", ha="left", va="bottom", fontsize=6.2, color=RED)
     ax2.set_xticks(range(len(groups)))
@@ -155,8 +160,7 @@ def fig_readout(audit, out_dir):
     ax2.set_ylabel("arrows pointing backwards", labelpad=1.5)
     ax2.set_xlim(-0.5, 1.5)
     ax2.yaxis.grid(True); ax2.set_axisbelow(True)
-    ax2.set_title("(b) the same arrows, split by who had to decide",
-                  loc="left", fontsize=7.0)
+    ax2.set_title("(b) reversal rate by decision source", loc="left", fontsize=7.0)
 
     fig.subplots_adjust(wspace=0.52)
     save(fig, out_dir, "rauma_f3_readout")

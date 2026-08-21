@@ -218,28 +218,38 @@ def fig_chain(out_dir):
     ref = [np.nan, 0.0, base["truth_in_hypotheses"].mean(),
            base["best_f1_in_hypotheses"].mean(), base["directed_f1"].mean()]
 
-    fig, axes = plt.subplots(1, 5, figsize=(6.9, 2.1))
-    for j, (ax, lab) in enumerate(zip(axes, labels)):
+    # Two rows rather than five squeezed panels: each stage has its own y range, and at
+    # one-fifth of the text width the tick labels were unreadable and the key collided
+    # with them. The layout is 3 + 2 with the legend in the free sixth cell.
+    fig, axes = plt.subplots(2, 3, figsize=(6.9, 4.0))
+    flat = axes.ravel()
+    for j, lab in enumerate(labels):
+        ax = flat[j]
         vals = [s[j] for s in stages]
         xs = np.arange(len(models))
-        ax.bar(xs, vals, 0.62, color=[BLUE if i < len(models) else GREY for i in range(len(models))],
-               edgecolor="white", linewidth=0.4)
+        ax.bar(xs, vals, 0.62, color=BLUE, edgecolor="white", linewidth=0.4)
         if np.isfinite(ref[j]):
-            ax.axhline(ref[j], color=RED, lw=1.0, ls=(0, (3, 2)))
+            ax.axhline(ref[j], color=RED, lw=1.1, ls=(0, (3, 2)))
         lo, hi = min(vals), max(vals)
         pad = max((hi - lo) * 0.35, 0.02)
         ax.set_ylim(max(0, min(lo, ref[j] if np.isfinite(ref[j]) else lo) - pad), hi + pad)
         ax.set_xticks(xs)
-        ax.set_xticklabels([TINY.get(m, short(m)) for m in models], fontsize=5.4, rotation=90)
-        ax.set_title(lab, loc="center", fontsize=6.4, fontweight="bold", linespacing=1.1)
+        ax.set_xticklabels([TINY.get(m, short(m)) for m in models], fontsize=6.4,
+                           rotation=32, ha="right")
+        ax.set_title(f"({chr(97 + j)}) " + lab.replace("\n", " "), loc="left",
+                     fontsize=7.2, fontweight="bold")
         ax.yaxis.grid(True); ax.set_axisbelow(True)
-        ax.tick_params(axis="y", labelsize=5.8)
-    axes[0].set_ylabel("value", fontsize=6.5)
-    axes[2].plot([], [], color=RED, lw=1.0, ls=(0, (3, 2)), label="no edits")
-    axes[2].legend(loc="upper center", fontsize=5.8, bbox_to_anchor=(0.5, -0.42))
+        ax.tick_params(axis="y", labelsize=6.6)
+    for ax in (flat[0], flat[3]):
+        ax.set_ylabel("value", fontsize=7)
+    key = flat[5]
+    key.axis("off")
+    key.plot([], [], color=BLUE, lw=6, solid_capstyle="butt", label="proposer, ordered by edit precision")
+    key.plot([], [], color=RED, lw=1.1, ls=(0, (3, 2)), label="no edits at all")
+    key.legend(loc="center", fontsize=7, frameon=False, handlelength=1.8)
     fig.suptitle("proposal quality propagates through four stages, then stops",
-                 fontsize=7.5, fontweight="bold", x=0.5, y=1.04)
-    fig.tight_layout(w_pad=0.9)
+                 fontsize=8.2, fontweight="bold", x=0.012, ha="left", y=1.0)
+    fig.tight_layout(w_pad=1.6, h_pad=1.8)
     save(fig, out_dir, "nemchua_a2_chain")
 
 
@@ -315,8 +325,9 @@ def fig_ladder(out_dir):
 
     ax = axes[0]
     arms = [("probe_oracle_edits", None, "perfect edits", GREEN, "-"),
+            ("probe_stat_edits", None, "statistical ranker", ORANGE, "-"),
             ("probe", "gpt-4o-mini-2024-07-18", "NemChua (gpt-4o-mini)", BLUE, "-"),
-            ("probe_random_edits", None, "random edits", RED, "-"),
+            ("probe_random_edits", None, "random edits (cap)", RED, "-"),
             ("probe_skel_only", None, "no edits", GREY, "-"),
             ("probe_mec_only", None, "PC equivalence class", LIGHT, (0, (3, 2))),
             ("pc_greedy_meek", None, "PC + greedy", DARK, (0, (1, 1.6)))]
@@ -340,7 +351,7 @@ def fig_ladder(out_dir):
     ax.set_xscale("log"); ax.set_xticks(ns)
     ax.set_xticklabels([str(n) for n in ns])
     ax.set_xlabel("observational sample size"); ax.set_ylabel("directed-edge F1")
-    ax.legend(loc="lower right", fontsize=5.8, ncol=1)
+    ax.legend(loc="lower right", fontsize=5.6, ncol=1, labelspacing=0.28)
     ax.yaxis.grid(True); ax.set_axisbelow(True)
     ax.set_title("(a)  every arm against sample size ($d{=}6,8$)", loc="left",
                  fontweight="bold", fontsize=7)
@@ -376,7 +387,7 @@ def fig_cost(out_dir):
     if d.empty:
         print("  [skip] a5"); return
     print("  [a5] main_v2")
-    fig, ax = plt.subplots(figsize=(3.4, 2.3))
+    fig, ax = plt.subplots(figsize=(3.9, 2.5))
     pts = [("llm_e2e", "gpt-4o-mini-2024-07-18", RED, "o"),
            ("llm_e2e", "qwen3-coder-30b-a3b-instruct", RED, "s"),
            ("probe_llm_graphs", "gpt-4o-mini-2024-07-18", ORANGE, "o"),
@@ -399,18 +410,25 @@ def fig_cost(out_dir):
                     markerfacecolor="white", markeredgewidth=1.2,
                     label=lab if lab not in seen else None)
         seen.add(lab)
-    for arm, color, label in [("probe_random_edits", GREEN, "random edits (no model)"),
-                              ("pc_greedy_meek", GREY, "PC + greedy (no model)")]:
+    # Three zero-token references, two of which sit within 0.03 F1 of each other, so the
+    # labels are staggered and drawn on an opaque patch rather than across their own lines.
+    # Three zero-token references, two of which land within 0.03 F1 of each other. Inline
+    # labels cannot be separated at that spacing, so they go in the key instead.
+    refs = [("probe_stat_edits", ORANGE, "statistical ranker"),
+            ("probe_random_edits", GREEN, "random edits (cap)"),
+            ("pc_greedy_meek", GREY, "PC + greedy")]
+    for arm, color, label in refs:
         s = d[d["arm"] == arm]
         if s.empty:
             continue
-        f1, e = mean_ci(s["directed_f1"])
-        ax.axhline(f1, color=color, lw=0.9, ls=(0, (3, 2)))
-        ax.text(1.05e5, f1 + 0.008, label, fontsize=5.8, color=color, ha="right")
+        f1, _ = mean_ci(s["directed_f1"])
+        ax.axhline(f1, color=color, lw=0.9, ls=(0, (3, 2)),
+                   label=f"{label} \u2014 no model")
     ax.set_xscale("log"); ax.set_xlim(6e2, 1.1e5)
     ax.set_xlabel("tokens per episode"); ax.set_ylabel("directed-edge F1")
     ax.set_ylim(-0.05, 1.05)
-    ax.legend(loc="center left", fontsize=6)
+    ax.legend(loc="lower left", fontsize=6, labelspacing=0.4, handlelength=1.9,
+              borderaxespad=0.5)
     ax.yaxis.grid(True); ax.xaxis.grid(True); ax.set_axisbelow(True)
     ax.set_title("accuracy against tokens spent", loc="left", fontweight="bold")
     fig.tight_layout()
